@@ -1,0 +1,33 @@
+Init File Specifications
+Version 1.0.0
+May 28, 2020
+
+
+=========================== inst.reg ===========================
+This file is very simply the string containing the path to the tree root.
+Depending on how lazy I am feeling, it will either be installed to a constant location in AppData (or Unix equivalent) or saved to the registry.
+
+=========================== init.cfg ===========================
+Contains text key-value pairs for initialization. Represents easily accessible user settings.
+This file is found at the tree root.
+Fields can vary depending on game or software.
+
+=========================== init.bin ===========================
+Contains binary init information.
+This file is found at the tree root.
+This file can be used for custom fields, but some fields are reserved for the engine.
+
+Version (of init.bin format) [4]
+8 ASCII char game code [8]
+Game Major Version [2]
+Game Minor Version [2]
+Build [2]
+Flags [2]
+	0 - Uses master ASSH (as opposed to scattered packages/headers, like XC or TS3)
+	1 - ASSH file(s) AES encrypted
+	2 - All packages AES encrypted
+Last Modified [8]
+(Reserved) [4]
+AES Key [16] (All 0 if N/A)
+HMAC Key [16] (Might not bother with, seems like a pain)
+Memory Limit [8]

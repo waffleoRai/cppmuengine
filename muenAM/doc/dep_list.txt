@@ -1,0 +1,8 @@
+zlib [http://zlib.net/] 
+openssl [https://www.openssl.org]
+libiconv []
+OpenGL []
+OpenAL []
+cAudio []
+libotf []
+freetype []

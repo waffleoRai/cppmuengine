@@ -4,11 +4,11 @@
 #include <stdint.h>
 
 
-typedef unsigned char uChar;
-typedef unsigned short uShort;
-typedef unsigned int uInt;
-typedef unsigned long uLong;
-typedef unsigned long long ulLong;
+typedef unsigned char uchar;
+typedef unsigned short ushort;
+typedef unsigned int uint;
+typedef unsigned long ulong;
+typedef unsigned long long ullong;
 
 typedef int8_t x8;
 typedef int16_t x16;
@@ -20,6 +20,7 @@ typedef uint16_t u16;
 typedef uint32_t u32;
 typedef uint64_t u64;
 
-typedef unsigned char byte;
+typedef uint8_t byte;
+typedef uint8_t boolean;
 
 #endif // QUICKDEFS_H_INCLUDED

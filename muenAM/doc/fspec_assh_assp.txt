@@ -1,0 +1,62 @@
+Asset Header (ASSH)/Asset Pack(ASSP) Format Specification
+Version 1.0.0
+May 28, 2020
+
+-> Little-Endian
+-> Master ASSH may be AES-CBC encrypted.
+	-> Keys for AES and HMAC checksums can be found in init.bin
+	-> AES IV is "muEngine" for first 8 bytes, and an 8 digit game code in ASCII for second.
+
+=========================== ASSH ===========================
+
+[0x00]	Magic # "assH" [4]
+[0x04]	Version [4]
+[0x08]	File Size [8]
+			-> Total, including this field and magic #
+[0x10]	Offset to path table [4]
+			-> Relative to file start
+[0x14]	Offset to asset table [4]
+			-> Relative to file start
+			
+------------ Path Table ------------
+Strings correlating to assp paths.
+Paths are relative to directory containing ASSH, unix style.
+For windows, need to reverse slashes.
+Program will need to sub in current directory to get absolute paths.
+
+[0x00]	Entry Count [4]
+[0x04]	Pointer Table... [4*n]
+	[] Offset to string start [4]
+		-> Relative to path table start
+[0x04 + 4n]	
+	Null terminated strings...
+
+------------ Asset Table ------------
+Asset TGI entries mapped to file locations.
+
+[0x00] Entry Count [4]
+[0x04] Entries... [64*n]
+	Type [4]
+	Group [4]
+	Instance [8]
+	File Path Index [4]
+	Offset [8]
+	Size [8]
+	Flags [1]
+		0: Is XOR'd with TGI
+		1-2: Compression (beyond type standard)
+			0 - None
+			1 - DEFLATE
+	Padding [7]
+	SHA256 Checksum [32]
+	
+=========================== ASSP ===========================
+
+[0x00]	Magic # "assP" [4]
+[0x04]	Version [4]
+[0x08]	Reserved [4]
+[0x0C]	SHA256 Checksum [32]
+		-> Of data (can't include ASSP header)
+[0x20]	Data...
+
+

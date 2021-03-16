@@ -11,7 +11,7 @@ const u16 DataInputStreamer::nextUnsignedShort()
 	u16 out = 0;
 	byte barr[bCount];
 
-	for(int i = 0; i < bCount; i++) barr[i] = iSource.getNextByte();
+	for(int i = 0; i < bCount; i++) barr[i] = iSource.nextByte();
 	if (eEndian == big_endian)
 	{
 		//Start at beginning
@@ -44,7 +44,7 @@ const u32 DataInputStreamer::nextUnsignedInt()
 	u32 out = 0;
 	byte barr[bCount];
 
-	for(int i = 0; i < bCount; i++) barr[i] = iSource.getNextByte();
+	for(int i = 0; i < bCount; i++) barr[i] = iSource.nextByte();
 	if (eEndian == big_endian)
 	{
 		//Start at beginning
@@ -77,7 +77,7 @@ const u32 DataInputStreamer::nextUnsigned24()
 	u32 out = 0;
 	byte barr[bCount];
 
-	for(int i = 0; i < bCount; i++) barr[i] = iSource.getNextByte();
+	for(int i = 0; i < bCount; i++) barr[i] = iSource.nextByte();
 	if (eEndian == big_endian)
 	{
 		//Start at beginning
@@ -112,7 +112,7 @@ const u64 DataInputStreamer::nextUnsignedLong()
 	u64 out = 0;
 	byte barr[bCount];
 
-	for(int i = 0; i < bCount; i++) barr[i] = iSource.getNextByte();
+	for(int i = 0; i < bCount; i++) barr[i] = iSource.nextByte();
 	if (eEndian == big_endian)
 	{
 		//Start at beginning
@@ -137,6 +137,22 @@ const u64 DataInputStreamer::nextUnsignedLong()
 const x64 DataInputStreamer::nextLong()
 {
 	return (x64)nextUnsignedLong();
+}
+
+const u64 DataInputStreamer::skip(u64 amt){
+    u64 ct = 0;
+    for(u64 i = 0; i < amt; i++){
+        iSource.nextByte();
+        ct++;
+    }
+    return ct;
+}
+
+void DataInputStreamer::close(){
+    if(closed) return;
+    iSource.close();
+    if(flag_free_on_close) delete &iSource;
+    closed = true;
 }
 
 const x64 FileInputStreamer::fileSize() const
@@ -180,7 +196,7 @@ const bool FileInputStreamer::isFail() const
     return oOpenStream->fail();
 }
 
-const u64 FileInputStreamer::remainingBytes() const
+const u64 FileInputStreamer::remaining() const
 {
 	if(!isOpen()) return 0;
 	//x64 fsz = fileSize();
@@ -231,9 +247,15 @@ void FileInputStreamer::open(const u64 startOffset)
 void FileInputStreamer::jumpTo(const u64 offset)
 {
 	if(!isOpen()) return;
-	if(offset > maxsz) throw InputException("waffleoRai_Utils::FileInputStreamer::open","Target offset after end of file!");
+	if(offset > maxsz) throw InputException("waffleoRai_Utils::FileInputStreamer::jumpTo","Target offset after end of file!");
 	oOpenStream->seekg(offset);
 	if(oOpenStream->fail()) throw InputException("waffleoRai_Utils::FileInputStreamer::jumpTo","Stream seekg failed!");
+}
+
+void FileInputStreamer::skip(const u64 skip_amt)
+{
+	u64 pos = (u64)(oOpenStream->tellg());
+	jumpTo(pos + skip_amt);
 }
 
 void FileInputStreamer::close()
@@ -247,7 +269,7 @@ void FileInputStreamer::close()
 	}
 }
 
-const byte FileInputStreamer::getNextByte()
+const byte FileInputStreamer::nextByte()
 {
 	if(!isOpen()) throw InputException("waffleoRai_Utils::FileInputStreamer::nextByte","Failed to retrieve next byte - stream is not open!");
 	int b = oOpenStream->get();

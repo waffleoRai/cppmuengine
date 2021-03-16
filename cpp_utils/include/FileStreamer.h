@@ -18,9 +18,13 @@ class DataStreamerSource
 {
 
 public:
-	virtual const byte getNextByte() = 0;
-	virtual const u64 remainingBytes() const = 0;
+	virtual const byte nextByte() = 0;
+	virtual const u64 remaining() const = 0;
 	virtual const bool streamEnd() const = 0;
+
+	virtual void open() = 0;
+	virtual void close() = 0;
+
 	virtual ~DataStreamerSource() = 0;
 };
 
@@ -28,16 +32,23 @@ class DataInputStreamer
 {
 
 private:
-	const Endianness eEndian;
+	Endianness eEndian;
 	DataStreamerSource& iSource;
+	bool flag_free_on_close = false;
+	bool closed = false;
 
 public:
-	DataInputStreamer(const Endianness endian, DataStreamerSource& src):eEndian(endian),iSource(src){}
-	const Endianness getEndianness() const{return eEndian;}
-	const int remaining() const{return iSource.remainingBytes();}
-	const bool atEnd() const{return iSource.streamEnd();}
+	DataInputStreamer(DataStreamerSource& src, const Endianness endian):eEndian(endian),iSource(src){}
 
-	const byte nextByte(){return iSource.getNextByte();}
+	DataStreamerSource& getSource() {return iSource;}
+	const Endianness getEndianness() const{return eEndian;}
+	void setEndianness(const Endianness endian){eEndian = endian;}
+	virtual const u64 remaining() const{return iSource.remaining();}
+	virtual const bool streamEnd() const{return iSource.streamEnd();}
+
+	const u64 skip(u64 amt);
+
+	const byte nextByte(){return iSource.nextByte();}
 	const u16 nextUnsignedShort();
 	const x16 nextShort();
 	const u32 nextUnsigned24();
@@ -47,7 +58,11 @@ public:
 	const u64 nextUnsignedLong();
 	const x64 nextLong();
 
-	virtual ~DataInputStreamer(){}
+	void setFreeOnCloseFlag(bool b){flag_free_on_close = b;}
+
+	virtual void close();
+
+	virtual ~DataInputStreamer(){close();}
 
 };
 
@@ -62,7 +77,7 @@ public:
 	const char* what() const throw(){return sReason;}
 };
 
-class FileInputStreamer:public DataInputStreamer, public DataStreamerSource
+class FileInputStreamer:public DataStreamerSource
 {
 
 private:
@@ -70,35 +85,34 @@ private:
     //const Endianness eEndian;
 
     ifstream* oOpenStream;
-    u64 read;
-    u64 maxsz; //Field to save file size so don't have to retrieve from OS when remainingBytes() is called.
+    u64 read = 0;
+    u64 maxsz = 0; //Field to save file size so don't have to retrieve from OS when remainingBytes() is called.
 
 public:
 
-    FileInputStreamer(const string& path, const Endianness e):DataInputStreamer(e,*this),sFilePath(path),read(0),maxsz(0){oOpenStream = NULL;}
+    FileInputStreamer(const string& path):sFilePath(path){oOpenStream = NULL;}
 
     const string& getPath() const{return sFilePath;}
 
     const x64 fileSize() const;
 
     const bool isOpen() const;
-    const bool streamEnd() const;
-    const bool atEnd() const{return streamEnd();}
+    const bool streamEnd() const override;
     const bool isGood() const;
     const bool isBad() const;
     const bool isFail() const;
-    const u64 remainingBytes() const;
-    const int remaining() const{return remainingBytes();}
+    const u64 remaining() const override;
     const u64 bytesRead() const{return read;}
 
-    void open();
+    void open() override;
     void open(const u32 startOffset);
     void open(const u64 startOffset);
     void jumpTo(const u64 offset);
-    void close();
+    void skip(const u64 skip_amt);
+    void close() override;
     const ifstream& getStreamView() const;
 
-    const byte getNextByte();
+    const byte nextByte() override;
 
     virtual ~FileInputStreamer(){close();}
 
@@ -167,8 +181,8 @@ public:
     void close();
     const ofstream& getStreamView() const;
 
-    const bool addByte(byte value);
-    const bool addBytes(const char* data, long datlen);
+    const bool addByte(byte value) override;
+    const bool addBytes(const char* data, long datlen) override;
 
     virtual ~FileOutputStreamer(){close();}
 };
