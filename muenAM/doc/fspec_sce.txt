@@ -1,0 +1,91 @@
+Binary Scene Script Specifications
+Version 1.0.0
+April 3, 2021
+
+=========================== _SCE (.musce) Format ===========================
+TGI table at top to assign 32-bit aliases to full TGIs ao don't have to write TGIs as parameters.
+Top bit of alias is set when table index is expected.
+
+=========================== Events ===========================
+
+Commands start with 1 byte to identify command (will extend to 2 bytes if I need to in a newer version)
+
+-- Audio
+Works on midi-like logic. Sounds are played and stopped on channel-layers. Further effects/controls added to channels (like volume, pan, filters etc.)
+There are 16 mono channels (0-15), 16 stereo channels (16-31), and 4 seqsynth channels (further split into 16 sub-channels for MIDI, invisible to the SCE reader)
+
+PLAY_SOUND [a0]
+	-> Text syntax
+		PLAY_SOUND (source) (tbl_idx if appl.) (channel) (input vol 0-127 optional) (loop - if arg not specified, default to false)
+		PLAY_SOUND my_sfx SE_CH_2 vol=120 loop=false
+PLAY_RANDOM_SOUND [a9]
+	-> PLAY_RANDOM_SOUND (pool size) (source0) (idx0) (source1) (idx1)... (channel) (vol=n) (loop=false)
+STOP_SOUND [a1]
+SET_VOL [a2] //Can also specify second arg for time to get to that volume
+	-> SET_VOL channel vol (millis)
+SET_PAN [a3]
+RESET_SOUND [a6]
+FADEOUT_ALL [a7] (Basically a shortcut for vol reduction - text only)
+FADEOUT_CH [a8] (Basically a shortcut for vol reduction - text only)
+	-> FADEOUT_CH ch (millis)
+
+LOAD_SOUNDBANK [a4]
+PLAY_SEQ [a5]
+
+-- Visual
+There are 128 image layers (in 2D). Informally, groups are assigned to various functions such as background near the bottom and UI near the top.
+
+DRAW_2D (this includes static images or animations - can specify parameter to draw with effect)
+	flags (1)
+		0-1: Transition type
+			0 - None (instant draw)
+			1 - Basic crossfade in (param is 4-bytes # of millis) (CROSSFADE)
+			2 - Effects table entry (param is 4 bytes for tbl ID, 4 bytes for index) (FROMTBL)
+			3 - Callback (param is 4 bytes for function id, 2 for func param count, then 8*2 for function params. If callback, asset/idx not specified) (CALLBACK)
+	asset (4)
+	index if appl. (4)
+	layer (2)
+	x offset (2)
+	y offset (2)
+	transition - if present, meaning specified by flags (4-8). Defaults to none/instant
+	-> Text syntax
+		DRAW_2D asset_name tbl_idx layer pos=x,y transition=type,param...
+FILL_2D (fill with solid color on some layer)
+	Same as draw 2D, but takes a 32-bit color instead of an asset reference. (also takes transition effects)
+SET_OPACITY (of layer)
+MOVE_2D (move contents of layer to another part of screen)
+	-> MOVE_2D x,y (rotate=n)
+CLEAR_LAYER (can specify parameter to undraw with effect? - or maybe I'll make that its own command)
+SHOW_TXB (draw textbox)
+SET_TXB_VIS (sets visibility of textbox or textbox module)
+CLEAR_TXB
+SET_TEXT
+APPEND_TEXT
+	-> APPEND_TEXT (textbox) (module) (table) (index)
+TXB_NEWLINE
+
+STD_EFFECT	(Do a built-in effect, these can be added as needed.)
+	SHAKE (shakes the screen or only specific layers at requested depth/freq/dur)
+	-> SHAKE (#times) (millis per shake) (pixels moved) (direction enum - x,y,xy) (layer(s) comma delim, all if not specified)
+	MONOCHROME (arg can be "sepia" "on" "off" or a hex color)
+	NEGA (arg "on" or "off")
+
+PLAY_MOV
+STOP_MOV
+
+-- Misc
+
+WAIT [10]
+CALL_METHOD [11]
+	Method ID - Matched to void(uint64_t*) call by running program (4)
+	Number of parameters (2)
+WAIT_FOR [12] (Async block until specified condition is met)
+DELAY [13] - Delays next command for n millis
+
+FOR/ENDFOR
+	-> FOR st ed
+	-> FOR <varname> st ed
+	"Compiler" determines which version by arg count
+WHILE/ENDWHILE
+IF/ENDIF
+	

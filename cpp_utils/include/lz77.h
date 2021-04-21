@@ -5,8 +5,7 @@
 
 #include "FileStreamer.h"
 
-
-using namespace std;
+//using namespace std;
 
 namespace waffleoRai_Utils
 {
@@ -14,18 +13,18 @@ namespace waffleoRai_Utils
 class ArrayWindow{
 
 private:
-    byte* buffer_start; //Used for alloc
-    byte* buffer_end; //Just used as pointer to save time adding
+    ubyte* buffer_start; //Used for alloc
+    ubyte* buffer_end; //Just used as pointer to save time adding
 
-    byte* read_pos;
-    byte* write_pos;
+    ubyte* read_pos;
+    ubyte* write_pos;
     u32 used_size;
 
-    byte* random_pos; //For random access
+    ubyte* random_pos; //For random access
 
 public:
     ArrayWindow(size_t alloc):used_size(0){
-        buffer_start = (byte*)malloc(alloc);
+        buffer_start = (ubyte*)malloc(alloc);
         buffer_end = buffer_start + alloc;
 
         read_pos = buffer_start;
@@ -33,20 +32,20 @@ public:
         random_pos = buffer_start;
     }
 
-    const byte pop();
-    const byte peek() const;
-    const bool push(byte b);
-    const bool put(byte b);
+    const ubyte pop();
+    const ubyte peek() const;
+    const bool push(ubyte b);
+    const bool put(ubyte b);
     const bool isEmpty() const;
     const bool isFull() const;
     const void clear();
 
     const uint removeFromFront(uint amt);
-    const uint putBytes(const byte* bytes, uint len);
+    const uint putBytes(const ubyte* bytes, uint len);
 
     const bool setRandomAccessPosition(uint pos);
     const bool setRandomAccessPositionBack(uint pos_from_back);
-    const byte getNextRAByte();
+    const ubyte getNextRAByte();
 
     const size_t getCurrentSize() const;
     const size_t getCapacity() const;
@@ -89,8 +88,8 @@ public:
 
     DataStreamerSource& getSource(){return src;}
 
-    const byte nextByte() override;
-	const u64 remaining() const override;
+    const ubyte nextByte() override;
+	const size_t remaining() const override;
 	const bool streamEnd() const override;
 
 	void setFreeOnCloseFlag(bool b){flag_free_on_close = b;}

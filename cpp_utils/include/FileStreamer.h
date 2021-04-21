@@ -1,34 +1,45 @@
 #ifndef FILESTREAMER_H_INCLUDED
 #define FILESTREAMER_H_INCLUDED
 
-#include "quickDefs.h"
-#include <string>
+#include "wr_cpp_utils.h"
+#include <iostream>
 #include <fstream>
-#include <sys/stat.h>
-#include <exception>
+#include <filesystem> //Need C++ 17 !
+//#include <sys/stat.h>
 
-using namespace std;
+//using namespace std;
+using std::ifstream;
+using std::streampos;
+using std::ofstream;
+using std::cout;
+using namespace std::filesystem;
+using namespace icu;
 
 namespace waffleoRai_Utils
 {
 
-enum Endianness {little_endian,big_endian};
+enum class WRCU_DLL_API Endianness {little_endian,big_endian};
 
-class DataStreamerSource
+WRCU_DLL_API const bool WRCU_CDECL sys_endian_matches(Endianness e);
+
+class WRCU_DLL_API DataStreamerSource
 {
 
 public:
-	virtual const byte nextByte() = 0;
-	virtual const u64 remaining() const = 0;
+	virtual const ubyte nextByte() = 0;
+	virtual const size_t remaining() const = 0;
 	virtual const bool streamEnd() const = 0;
 
 	virtual void open() = 0;
 	virtual void close() = 0;
+	virtual const bool isOpen() const = 0;
 
-	virtual ~DataStreamerSource() = 0;
+	virtual const size_t nextBytes(ubyte* dst, const size_t len); //Default implementation just calls nextByte()
+
+	virtual ~DataStreamerSource(){}
 };
 
-class DataInputStreamer
+class WRCU_DLL_API DataInputStreamer
 {
 
 private:
@@ -37,28 +48,54 @@ private:
 	bool flag_free_on_close = false;
 	bool closed = false;
 
+	int uconv_type = 0;
+	UErrorCode uerr = U_ZERO_ERROR;
+	UConverter* uconv = nullptr;
+
+	void initconv_utf8();
+	void initconv_utf16_bom();
+	void initconv_utf16_ordered();
+	void initconv_utf32_sysordered();
+
 public:
 	DataInputStreamer(DataStreamerSource& src, const Endianness endian):eEndian(endian),iSource(src){}
 
 	DataStreamerSource& getSource() {return iSource;}
 	const Endianness getEndianness() const{return eEndian;}
 	void setEndianness(const Endianness endian){eEndian = endian;}
-	virtual const u64 remaining() const{return iSource.remaining();}
+	virtual const size_t remaining() const{return iSource.remaining();}
 	virtual const bool streamEnd() const{return iSource.streamEnd();}
 
-	const u64 skip(u64 amt);
+	const size_t skip(streampos amt);
 
-	const byte nextByte(){return iSource.nextByte();}
-	const u16 nextUnsignedShort();
-	const x16 nextShort();
-	const u32 nextUnsigned24();
-	const x32 next24();
-	const u32 nextUnsignedInt();
-	const x32 nextInt();
-	const u64 nextUnsignedLong();
-	const x64 nextLong();
+	const ubyte nextByte(){return iSource.nextByte();}
+	const uint16_t nextUnsignedShort();
+	const int16_t nextShort();
+	const uint32_t nextUnsigned24();
+	const int32_t next24();
+	const uint32_t nextUnsignedInt();
+	const int32_t nextInt();
+	const uint64_t nextUnsignedLong();
+	const int64_t nextLong();
+
+	const size_t nextBytes(ubyte* dst, const size_t len) { return iSource.nextBytes(dst, len); }
 
 	void setFreeOnCloseFlag(bool b){flag_free_on_close = b;}
+
+	//String reading
+	const size_t readASCIIString(string& dst, const size_t sz_bytes);
+	const size_t readASCIIString(UnicodeString& dst, const size_t sz_bytes);
+	const size_t readASCIIString(char16_t* dst, const size_t sz_bytes);
+	const size_t readASCIIString(char32_t* dst, const size_t sz_bytes);
+
+	const size_t readUTF8String(UnicodeString& dst, const size_t sz_bytes);
+	const size_t readUTF8String(char16_t* dst, const size_t sz_bytes, const size_t out_cap);
+	const size_t readUTF8String(char32_t* dst, const size_t sz_bytes, const size_t out_cap);
+
+	//If no BOM, then takes the streamer's endianness
+	const size_t readUTF16String(UnicodeString& dst, const size_t sz_bytes, bool bom);
+	const size_t readUTF16String(char16_t* dst, const size_t sz_bytes, const size_t out_cap, bool bom);
+	const size_t readUTF16String(char32_t* dst, const size_t sz_bytes, const size_t out_cap, bool bom);
 
 	virtual void close();
 
@@ -66,7 +103,7 @@ public:
 
 };
 
-class InputException:public exception
+class WRCU_DLL_API InputException:public exception
 {
 private:
 	const char* sSource;
@@ -77,81 +114,114 @@ public:
 	const char* what() const throw(){return sReason;}
 };
 
-class FileInputStreamer:public DataStreamerSource
+class WRCU_DLL_API FileInputStreamer:public DataStreamerSource
 {
 
 private:
-    const string sFilePath;
-    //const Endianness eEndian;
+    const path sFilePath;
 
     ifstream* oOpenStream;
-    u64 read = 0;
-    u64 maxsz = 0; //Field to save file size so don't have to retrieve from OS when remainingBytes() is called.
+    size_t read = 0;
+    size_t maxsz = 0; //Field to save file size so don't have to retrieve from OS when remainingBytes() is called.
 
 public:
 
-    FileInputStreamer(const string& path):sFilePath(path){oOpenStream = NULL;}
+    FileInputStreamer(const string& ascii_path):sFilePath(ascii_path),oOpenStream(nullptr){}
+    FileInputStreamer(const char* ascii_path):sFilePath(ascii_path),oOpenStream(nullptr){}
+    FileInputStreamer(const char16_t* utf16_path):sFilePath(utf16_path),oOpenStream(nullptr){}
+    FileInputStreamer(const char32_t* utf32_path):sFilePath(utf32_path),oOpenStream(nullptr){}
 
-    const string& getPath() const{return sFilePath;}
+    const path& getPath() const{return sFilePath;}
 
-    const x64 fileSize() const;
+    const size_t fileSize() const;
 
-    const bool isOpen() const;
+    const bool isOpen() const override;
     const bool streamEnd() const override;
     const bool isGood() const;
     const bool isBad() const;
     const bool isFail() const;
-    const u64 remaining() const override;
-    const u64 bytesRead() const{return read;}
+    const size_t remaining() const override;
+    const size_t bytesRead() const{return read;}
 
     void open() override;
-    void open(const u32 startOffset);
-    void open(const u64 startOffset);
-    void jumpTo(const u64 offset);
-    void skip(const u64 skip_amt);
+    void open(const streampos startOffset);
+    void jumpTo(const streampos offset);
+    void skip(const streampos skip_amt);
     void close() override;
     const ifstream& getStreamView() const;
 
-    const byte nextByte() override;
+    const ubyte nextByte() override;
 
     virtual ~FileInputStreamer(){close();}
 
 };
 
-class DataOutputTarget
+class WRCU_DLL_API DataOutputTarget
 {
 
 public:
-	virtual const bool addByte(byte b) = 0;
-	virtual const bool addBytes(const char* data, long datlen) = 0;
-	//virtual const bool appendable() = 0;
-	virtual ~DataOutputTarget() = 0;
+	virtual const bool addByte(const ubyte b) = 0;
+	virtual const bool addBytes(const ubyte* data, const size_t datlen) = 0;
+	virtual const bool isOpen() const = 0;
+	virtual void open() = 0;
+    virtual void close() = 0;
+
+	virtual ~DataOutputTarget(){}
 
 };
 
-class DataOutputStreamer
+class WRCU_DLL_API DataOutputStreamer
 {
 
 private:
-	const Endianness eEndian;
+	Endianness eEndian;
 	DataOutputTarget& iTarget;
+	bool flag_free_on_close = false;
+	bool closed = false;
+
+	int uconv_type = 0;
+	UErrorCode uerr = U_ZERO_ERROR;
+	UConverter* uconv = nullptr;
+
+	void initconv_utf8();
+	void initconv_utf32_sysordered();
 
 public:
-	DataOutputStreamer(const Endianness endian, DataOutputTarget& targ):eEndian(endian),iTarget(targ){}
+	DataOutputStreamer(DataOutputTarget& targ, const Endianness endian):eEndian(endian),iTarget(targ){}
 	const Endianness getEndianness() const{return eEndian;}
+	void setEndianness(const Endianness endian) { eEndian = endian; }
 
-	void putByte(byte value);
-	void putUnsignedShort(u16 value);
-	void putShort(x16 value);
-	void put24(u32 value);
-	void putUnsignedInt(u32 value);
-	void putInt(x32 value);
-	void putUnsignedLong(u64 value);
-	void putLong(x64 value);
+	void putByte(const ubyte value);
+	void putUnsignedShort(const uint16_t value);
+	void putShort(const int16_t value);
+	void put24(const uint32_t value);
+	void putUnsignedInt(const uint32_t value);
+	void putInt(const int32_t value);
+	void putUnsignedLong(const uint64_t value);
+	void putLong(const int64_t value);
+
+	const size_t putASCIIString(const string& src, const bool putLength, const bool padEven);
+	const size_t putASCIIString(const UnicodeString& src, const bool putLength, const bool padEven);
+	const size_t putASCIIString(const char* src, const size_t nChars, const bool putLength, const bool padEven);
+	const size_t putASCIIString(const char16_t* src, const size_t nChars, const bool putLength, const bool padEven);
+	const size_t putASCIIString(const char32_t* src, const size_t nChars, const bool putLength, const bool padEven);
+
+	const size_t putUTF8String(const UnicodeString& src, const bool putLength, const bool padEven);
+	const size_t putUTF8String(const char16_t* src, const size_t nChars, const bool putLength, const bool padEven);
+	const size_t putUTF8String(const char32_t* src, const size_t nChars, const bool putLength, const bool padEven);
+
+	const size_t putUTF16String(const UnicodeString& src, const bool putLength, const bool bom);
+	const size_t putUTF16String(const char16_t* src, const size_t nChars, const bool putLength, const bool bom);
+	const size_t putUTF16String(const char32_t* src, const size_t nChars, const bool putLength, const bool bom);
+
+	void setFreeOnCloseFlag(bool b) { flag_free_on_close = b; }
+	virtual void close();
+
+	virtual ~DataOutputStreamer() { close(); }
 
 };
 
-class OutputException:public exception
+class WRCU_DLL_API OutputException:public exception
 {
 private:
 	const char* sSource;
@@ -162,32 +232,35 @@ public:
 	const char* what() const throw(){return sReason;}
 };
 
-class FileOutputStreamer:public DataOutputStreamer, public DataOutputTarget
+class WRCU_DLL_API FileOutputStreamer:public DataOutputTarget
 {
 
 private:
-    const string sFilePath;
+    const path sFilePath;
 
     ofstream* oOpenStream;
 
 public:
-    FileOutputStreamer(const string& path, Endianness e):DataOutputStreamer(e, *this),sFilePath(path){oOpenStream = NULL;}
+    FileOutputStreamer(const string& ascii_path):sFilePath(ascii_path),oOpenStream(nullptr){}
+    FileOutputStreamer(const char* ascii_path):sFilePath(ascii_path),oOpenStream(nullptr){}
+    FileOutputStreamer(const char16_t* utf16_path):sFilePath(utf16_path),oOpenStream(nullptr){}
+    FileOutputStreamer(const char32_t* utf32_path):sFilePath(utf32_path),oOpenStream(nullptr){}
 
-    const string& getPath() const{return sFilePath;}
+    const path& getPath() const{return sFilePath;}
 
-    const bool isOpen() const;
-    void open();
+    const bool isOpen() const override;
+    void open() override;
     void openForAppending();
-    void close();
+    void close() override;
     const ofstream& getStreamView() const;
 
-    const bool addByte(byte value) override;
-    const bool addBytes(const char* data, long datlen) override;
+    const bool addByte(const ubyte value) override;
+    const bool addBytes(const ubyte* data, const size_t datlen) override;
 
     virtual ~FileOutputStreamer(){close();}
 };
 
-class FileParsingException:public exception
+class WRCU_DLL_API FileParsingException:public exception
 {
 private:
 	const char* sSource;
@@ -198,17 +271,7 @@ public:
 	const char* what() const throw(){return sReason;}
 };
 
-class NullPointerException:public exception
-{
-private:
-	const char* sSource;
-	const char* sReason;
-
-public:
-	NullPointerException(const char* source, const char* reason):sSource(source),sReason(reason){};
-	const char* what() const throw(){return sReason;}
-};
 
 }
 
-#endif // FILESTREAMER_H_INCLUDED
+#endif // FILESTREAMER_H_INCL

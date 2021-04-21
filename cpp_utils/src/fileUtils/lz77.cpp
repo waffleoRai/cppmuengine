@@ -8,20 +8,20 @@ namespace waffleoRai_Utils
 
 /*--- Array Window ---*/
 
-const byte ArrayWindow::pop(){
+const ubyte ArrayWindow::pop(){
     if(used_size <= 0) return 0;
-    byte b = *(read_pos++);
+    ubyte b = *(read_pos++);
     if(read_pos >= buffer_end) read_pos = buffer_start;
     used_size--;
     return b;
 }
 
-const byte ArrayWindow::peek() const{
+const ubyte ArrayWindow::peek() const{
     if(used_size <= 0) return 0;
     return *(read_pos);
 }
 
-const bool ArrayWindow::push(byte b){
+const bool ArrayWindow::push(ubyte b){
     if(isFull()) return false;
     if(--read_pos < buffer_start) read_pos = buffer_end-1;
     *(read_pos) = b;
@@ -29,7 +29,7 @@ const bool ArrayWindow::push(byte b){
     return true;
 }
 
-const bool ArrayWindow::put(byte b){
+const bool ArrayWindow::put(ubyte b){
     if(isFull()) return false;
     if(write_pos >= buffer_end) write_pos = buffer_start;
     *(write_pos++) = b;
@@ -54,7 +54,7 @@ const void ArrayWindow::clear(){
 const uint ArrayWindow::removeFromFront(uint amt){
     //"Pops" the number of specified bytes from the front
     if(amt>used_size) amt = used_size;
-    byte* npos = read_pos + amt;
+    ubyte* npos = read_pos + amt;
     if(npos >= buffer_end){
         npos = buffer_start + (npos - buffer_end);
     }
@@ -63,7 +63,7 @@ const uint ArrayWindow::removeFromFront(uint amt){
     return amt;
 }
 
-const uint ArrayWindow::putBytes(const byte* bytes, uint len){
+const uint ArrayWindow::putBytes(const ubyte* bytes, uint len){
     size_t rem = getAvailableSize();
     if(rem <= 0) return 0;
     if(rem < len) len = rem;
@@ -79,7 +79,7 @@ const uint ArrayWindow::putBytes(const byte* bytes, uint len){
 
 const bool ArrayWindow::setRandomAccessPosition(uint pos){
     if(pos >= used_size) return false;
-    byte* mpos = read_pos + pos;
+    ubyte* mpos = read_pos + pos;
     if(mpos >= buffer_end) mpos = buffer_start + (mpos - buffer_end);
     random_pos = mpos;
     return true;
@@ -87,16 +87,16 @@ const bool ArrayWindow::setRandomAccessPosition(uint pos){
 
 const bool ArrayWindow::setRandomAccessPositionBack(uint pos_from_back){
     if(pos_from_back >= used_size) return false;
-    byte* mpos = write_pos - pos_from_back;
+    ubyte* mpos = write_pos - pos_from_back;
     if(mpos < buffer_start) mpos = buffer_end - (buffer_start - mpos);
     random_pos = mpos;
     return true;
 }
 
-const byte ArrayWindow::getNextRAByte(){
+const ubyte ArrayWindow::getNextRAByte(){
     //DOES NOT CHECK to see if you are out of bounds!
     //MAY RETURN GARBAGE!!!!
-    byte b = *(random_pos++);
+    ubyte b = *(random_pos++);
     if(random_pos >= buffer_end) random_pos = buffer_start;
     return b;
 }
@@ -124,7 +124,7 @@ const uint LZ77Decompressor::bufferBlock(){
     //Copy plaintext...
     uint count = 0;
     for(uint i = 0; i < read_plain; i++){
-        byte b = src.nextByte();
+        ubyte b = src.nextByte();
         if(rwin.put(b)) count++;
         else return count;
 
@@ -136,7 +136,7 @@ const uint LZ77Decompressor::bufferBlock(){
     if(backread_count > 0){
         if(!bwin.setRandomAccessPositionBack(backread_off)) return count;
         for(uint i = 0; i < backread_count; i++){
-            byte b = bwin.getNextRAByte();
+            ubyte b = bwin.getNextRAByte();
 
             if(rwin.put(b)) count++;
             else return count;
@@ -149,7 +149,7 @@ const uint LZ77Decompressor::bufferBlock(){
     return count;
 }
 
-const byte LZ77Decompressor::nextByte(){
+const ubyte LZ77Decompressor::nextByte(){
     //Check if there are bytes left
     //if(streamEnd()) return 0xFF;
 

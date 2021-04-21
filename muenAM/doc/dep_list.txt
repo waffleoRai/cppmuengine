@@ -1,8 +1,19 @@
 zlib [http://zlib.net/] 
 openssl [https://www.openssl.org]
+icu [http://site.icu-project.org/]
 libiconv []
+
 OpenGL []
-OpenAL []
-cAudio []
+GLFW [https://www.glfw.org/]
+GLEW [http://glew.sourceforge.net/]
+DevIL [http://openil.sourceforge.net/] (image formats)
+GLI [http://www.g-truc.net/project-0024.html] (image formats)
+SFML? [https://www.sfml-dev.org/] (multimedia openGL/openAL)
+	(those on chromat are for minGW 7.3.0)
+harfbuzz [] (font rendering)
 libotf []
 freetype []
+
+OpenAL []
+cAudio []
+

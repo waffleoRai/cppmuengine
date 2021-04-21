@@ -2,15 +2,25 @@ Init File Specifications
 Version 1.0.0
 May 28, 2020
 
+**Any TGI xor-ing is the TGI backwards. That is, as if the TGI was a little-endian 128-byte value. Therefore:
+I0 I1 I2 I3 I4 I5 I6 I7 G0 G1 G2 G3 T0 T1 T2 T3
 
 =========================== inst.reg ===========================
 This file is very simply the string containing the path to the tree root.
 Depending on how lazy I am feeling, it will either be installed to a constant location in AppData (or Unix equivalent) or saved to the registry.
 
+(Update - I'm just gonna make it binary)
+Entries...
+	[8] Game code (ASCII)
+	[VLS 2x2] Install Root (UTF8)
+
 =========================== init.cfg ===========================
 Contains text key-value pairs for initialization. Represents easily accessible user settings.
 This file is found at the tree root.
 Fields can vary depending on game or software.
+All strings must be ASCII
+
+Because the read buffer is only 1kb, a given key or value cannot exceed 1023 bytes/characters in size
 
 =========================== init.bin ===========================
 Contains binary init information.
@@ -23,11 +33,67 @@ Game Major Version [2]
 Game Minor Version [2]
 Build [2]
 Flags [2]
-	0 - Uses master ASSH (as opposed to scattered packages/headers, like XC or TS3)
-	1 - ASSH file(s) AES encrypted
-	2 - All packages AES encrypted
+	0-1 - ASSH type
+		0: Single master ASSH (all resource cards loaded at boot)
+		1: ASSH by group (An ASSH per group (middle ID in TGI) - allows for dynamic loading of cards)
+		2: Scattered ASSHs (Arbitrary ASSHs - scans and loads dynamically as resources requested)
+		3:
+	2 - ASSH file(s) AES encrypted
+	3 - All packages AES encrypted (key for any asset is the master key XORd with the TGI)
 Last Modified [8]
 (Reserved) [4]
 AES Key [16] (All 0 if N/A)
 HMAC Key [16] (Might not bother with, seems like a pain)
 Memory Limit [8]
+Path Table --
+	(This is the table of all assp files in the game. I decided to put this here so that all strings can be loaded ONCE into memory when the game first boots, and the resource cards can then just point to the single string copies)
+	Table size (after this field - used to skip to group table) [4]
+	Entry Count [4]
+	String offset table [4n]
+		(Offsets relative to path table start to each string as a 2x2 VLS)
+	String data [2x2 VLS] (ASCII - install base may be unicode, but internal paths must be ASCII)
+	
+Group Table --
+	(Table of group IDs to names and ASSH paths - ASSH paths are only applicable if by group)
+	Entry Count [4]
+	Group Records...
+		Group ID [4]
+		ASSH Path [VLS 2x2] (ASCII)(this is just a short 0 if not applicable)(unix style relative path - remember to convert to absolute when trying to load a file!)
+		
+=========================== (project file) ===========================
+File that stores data for project builder that isn't included in the game init bin.
+Includes paths for under-construction init.bin
+Lists of archives, and information about the files to import and package
+Multi-byte fields are LE
+Input paths and asset names UTF8 encoded
+Group and arc names must be ASCII
+If compression is used, just zlib deflate like assp contents
+
+Magic Number "muenPROJ" [8]
+Version [2]
+Flags [2]
+	0 - File body compressed?
+Default Package Index [2] (V2+)
+Default Group ID [4] (V2+)
+Decomp Size (if applicable) [4]
+
+--- (Optionally) Compressed Region ---
+Project Directory [VLS 2x2] (UTF8)
+	Directory where project is built to (also use this init.bin for project info)
+Archive Count [4]
+Archive Table...
+	Arc Item Count [4]
+	Archive Name [VLS 2x2] (ASCII only)
+	Arc Root-Relative Path [VLS 2x2] (ASCII only)
+		This is where the assp should be placed in the built root folder (for organization)
+		Output tree only allows ASCII for dir/file names, though for *input* file paths, unicode is allowed
+	Item Entries...
+		Type [4]
+		Group [4]
+		Instance [8]
+		Name [VLS 2x2] (UTF8)
+		Source Path [VLS 2x2] (UTF8)
+Group Count [4]
+Group Name Table...
+	Group ID [4]
+	Group Name [VLS 2x2] (UTF8)

@@ -1,0 +1,106 @@
+String Container File Specifications
+Version 1.0.0
+March 20, 2021
+
+=========================== Existing Language Codes ===========================
+Languages are referenced by two ASCII characters (preferably capital letters). The currently reserved codes are as follows:
+
+EN - English
+ES - Spanish
+FR - French
+DE - German
+IT - Italian
+CT - Chinese Traditional
+CS - Chinese Simplfied
+JP - Japanese
+KO - Korean
+RU - Russian
+PT - Portugese
+DT - Dutch
+
+Variants (English)...
+bE - British English (broadly)
+aE - North American English (broadly)
+wE - Weeb English (Sorry! But you know...)
+
+Variants (Japanese)...
+kJ - Kana-only Japanese
+
+=========================== Formatting Encoding & Control Chars ===========================
+Encoding text strings allows for a handful of text formatting commands, as this is information that can be used in a game, especially a text heavy game.
+Within the string tables, formatting commands are encoded using some of the unicode private use codepoints between 0xe000 - 0xe0ff
+tsv files can also be used as sources to bundle into string tables (so can be easily edited in more programs)
+
+Currently, the following formatting commands are available...
+
+Effect				Bin Encoding				Text Encoding
+------				------------				-------------
+Set Bold			U+E080						\b
+Set Italic			U+E081						\i
+Set Font Size		U+E082 (*Size)				\s<SIZE>
+Set Font			U+E083 (*Font TGI)			\f<FONTASSETNAME>
+Set Font Color		U+E084 (*Color)				\c<COLOR>
+Set Outline Color	U+E085 (*Color)				\o<COLOR>
+Furigana			U+E086 (*#Char Back)		\k<CHARSBACK>
+Set Text Speed		U+E087 (*Millis)			\S<MILLIS_PER_CHAR>
+Print Variable		U+E088 (*var)				\$<VARNAME>
+Wait				U+E089 (*Millis)			\W<MILLIS_PER_CHAR>
+Append				U+E08a						\a
+Page End			U+E08b						\E
+Tab					U+0009						\t
+Newline				U+0010						\n
+New textbox			U+0013						\N
+Backslash literal	U+005C						\\
+
+Append means (if the parser accepts) that after the end of this string, the next string printed should start immediately after instead of after a newline or new tb.
+Page End tells the textbox (if it accepts it) to use the tb end cursor instead of the tb next cursor.
+
+Binary Encodings of Parameters (Follow control character)
+These masquerade as valid UTF8 or UTF16 input (simply by avoiding the highest bit of each byte) so as to not choke the icu decoder. As a result, the encoding is a little odd.
+
+[Font Size]
+14 bits across 2 bytes (LE) where each byte has the top bit unset
+(UTF8 will read these as two ASCII values and UTF16 will read it as one basic plane codepoint)
+In a tsv table, SIZE should be substituted with the desired font size in decimal. (eg. 11 for 11 point font)
+The value 0 resets to default. Default can also be restored in a tsv using a parameterless \s
+
+tsv Example: Let's look at some very \s<24>big\s and some very \s<6>small\s letters.
+
+[Font TGI]
+The 128 bit TGI (Backwards, as IGT all LE) spread across 19 bytes with the top bit unset. Start reading with two lowest bits of first byte and just chain together lower seven bits of the other 18 bytes to get 128 bits.
+In a tsv table, FONTASSETNAME should be the *asset name* in the project of the desired target font
+If the third lowest bit in the first byte is set, it is read as a reset to default font and the next 18 bytes are not taken as a parameter. Default can be specified in a tsv using a parameterless \f
+
+[Color]
+4 bytes - the first has the highest bits of the other three as its three lowest bits
+If bit 3 (4th lowest bit) of the highest byte is set, the color will be set as default and the next three bytes will not be treated as parameters
+The other bytes are, in order, the lower 7 bits of RGB.
+So, to encode solid white (#FFFFFF), we would get...
+0x07 0x7F 0x7F 0x7F]
+Magenta (#FF00FF) would look like...
+0x05 0x7F 0x00 0x7F
+In a tsv table, COLOR should be the desired color in hex code preceded by a pound sign (eg. #FF0000 for pure red). Default can be specified with a a parameterless \c or \o
+
+[Char Back]
+A single seven bit value specifying over how many characters back the following furigana should be placed above. The range is 0-127
+A furigana formatting must consist of two furigana commands specifying the beginning and end of the furigana string. The first is followed by the char back parameter, the second closing out the furigana string should have NO PARAMETER.
+In a tsv table, CHARBACK should just be a value 1-127. The furigana string should be closed with a second parameterless \k.
+
+=========================== String Table .tsv Input Specifications ===========================
+
+=========================== String Table (_STT, .stt, .stt8, .stt16) ===========================
+
+[4] Magic number ("_STT", "STT8", "ST16")
+[2] Format version
+[2] Language/variant count (#of "columns")
+[4] String count (# of rows/entries)
+[2n] Language/variant codes (2 bytes for each variant. Language codes are standard, but variant IDs can be whatever the program recognizes)
+[8n] Variant table offsets. Strings for a given variant all together (as it's assumed the strings for only one variant need to be loaded at once).
+		Offsets are relative to file start.
+[2] Flags
+	0-1: Encoding (If STT)
+[2] Variant code (repeated)
+[4] entry count (repeated)
+[4n] Entry offsets (Relative to THIS table's start)
+Entries...
+	As 2x2 VLS

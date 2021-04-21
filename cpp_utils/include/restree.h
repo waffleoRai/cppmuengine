@@ -8,23 +8,26 @@
 #ifndef RESTREE_RESTREE_H_
 #define RESTREE_RESTREE_H_
 
-#include "quickDefs.h"
-#include <string>
+#include <vector>
 #include <list>
 #include <map>
-#include <exception>
 #include <stdexcept>
 #include <cstddef>
 
-using namespace std;
+#include "wr_cpp_utils.h"
 
-namespace waffleoRai_Utils
-{
+//using namespace std;
+using std::map;
+using std::vector;
+using std::list;
+using namespace icu;
+
+namespace waffleoRai_Utils{
 
 /*--- Resource Key ---*/
 
-typedef struct ResourceKey
-{
+typedef struct WRCU_DLL_API ResourceKey{
+
 public:
 	u32 typeID = ~0; //Technically this is an enum
 	u32 groupID = ~0;
@@ -49,37 +52,41 @@ public:
 
 /*--- Resource Card ---*/
 
-typedef struct ResourceCard
-{
+class WRCU_DLL_API ResourceCard {
 
 public:
 	ResourceKey key;
+	const UnicodeString* pathroot = nullptr;
 	const string* filepath = nullptr; //Reference should be to something in path table for mem management
-	u32 offset = ~0;
-	u32 rawSize = ~0; //In TS3 Top bit is always set. Why? No one knows. Will unset upon readin.
-	u32 decompSize = ~0;
+	u64 offset = ~0ULL;
+	size_t rawSize = ~0ULL; //In TS3 Top bit is always set. Why? No one knows. Will unset upon readin.
+	size_t decompSize = ~0ULL;
 	u16 misc_flags = 0;
 	bool compressed = false;
 	string name;
 
-	ResourceCard():key(),name(""){};
-	ResourceCard(const ResourceKey& rkey, string& path):key(rkey),filepath(&path),name(""){};
-	ResourceCard(const u32 type, const u32 group, const u64 instance, string& path):key(type, group, instance),filepath(&path){};
-	ResourceCard(const ResourceCard& other):key(other.key),filepath(other.filepath),offset(other.offset),rawSize(other.rawSize),decompSize(other.decompSize),compressed(other.compressed){};
+	ResourceCard() :key(), name("") {};
+	ResourceCard(const ResourceKey& rkey, string& path) :key(rkey), filepath(&path), name("") {};
+	ResourceCard(const u32 type, const u32 group, const u64 instance, string& path) :key(type, group, instance), filepath(&path) {};
+	ResourceCard(const ResourceCard& other) :key(other.key), filepath(other.filepath), offset(other.offset), rawSize(other.rawSize), decompSize(other.decompSize), compressed(other.compressed) {};
 
 	ResourceCard& operator=(const ResourceCard& other);
-	bool operator==(const ResourceCard& other) const{return key == other.key;}
-	bool operator!=(const ResourceCard& other) const{return key != other.key;}
-	bool operator>=(const ResourceCard& other) const{return key >= other.key;}
-	bool operator>(const ResourceCard& other) const{return key > other.key;}
-	bool operator<=(const ResourceCard& other) const{return key <= other.key;}
-	bool operator<(const ResourceCard& other) const{return key < other.key;}
+	bool operator==(const ResourceCard& other) const { return key == other.key; }
+	bool operator!=(const ResourceCard& other) const { return key != other.key; }
+	bool operator>=(const ResourceCard& other) const { return key >= other.key; }
+	bool operator>(const ResourceCard& other) const { return key > other.key; }
+	bool operator<=(const ResourceCard& other) const { return key <= other.key; }
+	bool operator<(const ResourceCard& other) const { return key < other.key; }
 
-} ResourceCard;
+	virtual const size_t pathLength();
+	virtual const size_t getUnicodePath(char16_t* dst, size_t dstcap);
+
+	virtual ~ResourceCard() {}
+};
 
 /*--- Resource Map ---*/
 
-class NoResourceCardException:public exception
+class WRCU_DLL_API NoResourceCardException:public exception
 {
 private:
 	const char* sSource;
@@ -95,21 +102,32 @@ public:
 
 };
 
-class PathTable{
-
+class WRCU_DLL_API PathTable{
+	//TODO switch to vector?
 private:
-    list<string> str_list;
+    //list<string> str_list;
+	UnicodeString basepath = "";
+	vector<string> str_vec;
 
 public:
-    PathTable():str_list(){};
+    /*PathTable():str_list(){};
     const string& addPath(const string& strpath){str_list.push_back(strpath); return str_list.back();}
     void clear(){str_list.clear();}
-    const size_t getSize(){return str_list.size();}
+    const size_t getSize(){return str_list.size();}*/
+
+	PathTable(size_t init_alloc) :str_vec(init_alloc){}
+	void clear() { str_vec.clear(); }
+	const size_t getSize() { return str_vec.size(); }
+	const string& getPathAtIndex(const int idx);
+	const UnicodeString& getBasePath();
+
+	const string& addPath(const string& strpath);
+	const string& addPath(const char* path);
+	const UnicodeString& setBasePath(const UnicodeString& in);
 
 };
 
-class ResourceMap
-{
+class WRCU_DLL_API ResourceMap{
 
 private:
 	map<ResourceKey, ResourceCard> rMap;
@@ -137,4 +155,4 @@ public:
 
 }
 
-#endif /* RESTREE_RESTREE_H_ */
+#endif // RESTREE_RESTREE_H_ 

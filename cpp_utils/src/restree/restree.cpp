@@ -9,8 +9,7 @@
 
 using namespace std;
 
-namespace waffleoRai_Utils
-{
+namespace waffleoRai_Utils{
 
 /*--- Resource Key ---*/
 
@@ -74,6 +73,72 @@ ResourceCard& ResourceCard::operator=(const ResourceCard& other){
         name = other.name;
     }
     return *this;
+}
+
+const size_t ResourceCard::pathLength() {
+	size_t len = 0;
+	
+	if (pathroot) len += static_cast<size_t>(pathroot->length()) + 1;
+	if (filepath) len += filepath->length();
+
+	return len;
+}
+
+const size_t ResourceCard::getUnicodePath(char16_t* dst, size_t dstcap) {
+	if (!dst || dstcap < 1) return 0;
+
+	char16_t* lim = (dst + dstcap) - 1; 
+	size_t count = 0;
+	size_t strlen = 0;
+	size_t i = 0;
+	if (pathroot) {
+		//Copy pathroot and filesep
+		strlen = static_cast<size_t>(pathroot->length());
+		for (i = 0; i < strlen; i++) {
+			if (dst >= lim) break;
+			*(dst++) = pathroot->charAt(i);
+			count++;
+		}
+		if (dst < lim) { *(dst++) = FILE_SEP16; count++; }
+	}
+
+	if ((dst < lim) && filepath) {
+		strlen = static_cast<size_t>(filepath->length());
+		for (i = 0; i < strlen; i++) {
+			if (dst >= lim) break;
+			*(dst++) = filepath->at(i);
+			count++;
+		}
+	}
+
+	*(dst) = '\0';
+	return count;
+}
+
+/*--- Path Table ---*/
+
+const string& PathTable::getPathAtIndex(const int idx) {
+	if (idx < 0 || idx >= str_vec.size()) throw IndexOutOfBoundsException("waffleoRai_Utils::PathTable::getPathAtIndex","Index is invalid!");
+	return str_vec[idx];
+}
+
+const string& PathTable::addPath(const string& strpath) {
+	str_vec.push_back(strpath);
+	return str_vec.back();
+}
+
+const string& PathTable::addPath(const char* path) {
+	str_vec.push_back(path);
+	return str_vec.back();
+}
+
+const UnicodeString& PathTable::getBasePath() {
+	return basepath;
+}
+
+const UnicodeString& PathTable::setBasePath(const UnicodeString& in) {
+	basepath = in;
+	return basepath;
 }
 
 /*--- Resource Map ---*/

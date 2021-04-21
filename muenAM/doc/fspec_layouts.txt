@@ -1,0 +1,187 @@
+Layout File Specifications
+Version 1.0.0
+March 20, 2021
+
+=========================== Layout (_LYO, .mulyo) ===========================
+Specifies how to draw a UI component from graphics assets.
+
+Magic Number "mLYO" [4]
+Version [2]
+Flags (reserved) [2]
+Scale Param X [2]
+Scale Param Y [2]
+	These are screen dimensions the layout is scaled against, in other words the size of the screen where image assets are drawn as-is without scaling. All coords and sizes in this file are also relative to this.
+Variant Count [4]
+Variant Offset Table...
+	Offset to var n (relative to file start) [4]
+	**The position at index 0 is always a dummy 0 since variant 0 is the default specified by the file
+Component Count [4]
+Component Offset Table...
+	Offset to comp n (relative to file start) [4]
+Component Data...
+	Magic "comp" [4]
+	Size (after this field) [4]
+	Flags [2]
+		0 - Empty source? (slot to set some graphics element externally)
+		1 - Fill type (set if repeat, unset if stretch)
+		2 - Fill horizontal?
+		3 - Fill vertical?
+		4 - Mirror x?
+		5 - Mirror y?
+		6-7 Rotation
+			0: None
+			1: 90 deg
+			2: 180 deg
+			3: 270 deg
+	Source TGI (If applicable) [16]
+		This is type, group, instance - each field separate in that order, LE
+	Source default index [2]
+		This is set to 0 if N/A
+		This is used in case the source is a sprite sheet or some kind of collection. Specifies index of default image to use. Can be swapped with another one in the collection by program when loaded. Good for buttons.
+	Anchor Count [2]
+	Anchors...
+		Anchor Source [2]
+			If anchor is the layout boundaries, this value is -1 (0xFFFF)
+			If it's another component, then index of component within this layout
+		Source X [2]
+		Source Y [2]
+		This comp X [2]
+		This comp Y [2]
+		Offset X (signed) [2]
+		Offset Y (signed) [2]
+	**
+		Anchors serve as location info for where to draw component. If there are multiple conflicting anchors, those specified first take priority. Comp XY is drawn offset XY from source XY. If component has fill enabled, renderer should attempt to bridge anchors by filling in with this component appropriately.
+	**
+	Fill repeat sample area (if applicable - field always here if repeat flag set, but unused if source is a layout)
+		Horiz start [2]
+		Horiz end [2]
+		Vert start [2]
+		Vert end [2]
+Variants...
+	Change Count [2]
+	Comp Idx [2]
+	Change Enum [1]
+		**Highest bit set in change enum means value includes additional 16 bytes after 3 byte field
+		0x00 - N/A (ignore this change)
+		0x10 - Change index in source collection
+		0x11 - Omit component (value is index of comp to omit)
+		0x12 - Invisible component (value is index of comp to make invisible)
+			The difference between invisible and omit is invisible still reserves the space for the component whereas omit renders as if comp never existed.
+	Change Value [3]
+	(Additional change value) [16]
+
+Asset sources can be the following types:
+	_LYO
+	_IMG
+	_SPR
+	_ANM
+	_TLM
+
+=========================== Textbox Layout (_TXB, .mutxb) ===========================
+Specifies how to draw a textbox. Similar to a _LYO, but has more specifications.
+This is mostly a save format - more modifications can be made to textbox dynamically in the program
+(Don't forget to add slots for callbacks/listeners on character drawing too)
+
+Magic Number "mTXB" [4]
+Version [2]
+Flags [2]
+	0: Default loc coords - X from right?
+	1: Default loc coords - Y from bottom?
+Scale Param X [2]
+Scale Param Y [2]
+Default Location
+	*Where in the box of the screen this textbox would be drawn by default. The lowest two flags for the file specify what corner of the screen the offsets are relative to
+	*
+	Offset X [2]
+	Offset Y [2]
+	Width [2]
+	Height [2]
+Variant Count [4]
+Variant Offset Table...
+	Offset to var n (relative to file start) [4]
+	**The position at index 0 is always a dummy 0 since variant 0 is the default specified by the file
+Module Count [2]
+Module Offset Table... [4n]
+	Offset to module n (relative to file start) [4]
+Modules...
+	**
+	A single module is a single text slot. An example of this might be a dialogue box with a top module containing a character's name and the main module containing the dialogue.
+	**
+	Magic "modu" [4]
+	Size (after this field) [4]
+	Flags [2]
+		0-1: Default text alignment
+			0: Left
+			1: Center
+			2: Right
+	Graphics Source TGI [16] 
+	Default Font TGI [16]
+	Default Source Index [4] (Like for a layout variation or sprite in spritesheet)
+	Default Font Flags [2]
+		0 - Outlined font?
+		1 - Bold?
+		2 - Italic?
+	Default Font Color [4] (ARGB - LE (so looks like BGRA))
+	Default Outline Color [4] (Set to #000000 if N/A)
+	Default Font Size [2]
+	Default Text Draw Rate [2] //Millis per character
+	Textbox Location... 
+		Anchor [1]
+			0: Loc coords - X from right?
+			1: Loc coords - Y from bottom?
+		(reserved) [1]
+		Offset X [2]
+		Offset Y [2]
+		Width [2]
+		Height [2]
+	Anchors...
+		Anchor Source [2]
+			If anchor is the TXB boundaries, this value is -1 (0xFFFF)
+			If it's another module, then index of module within this TXB
+		Source X [2]
+		Source Y [2]
+		This comp X [2]
+		This comp Y [2]
+		Offset X (signed) [2]
+		Offset Y (signed) [2]
+	Default Scrolling Behavior [1]
+		0 - Clear and redraw
+		1 - Slide up textblock
+		2 - Slide up line by line
+	Default text drawing behavior [1]
+		0 - Character by character
+		1 - All at once
+	Cursor Count [2]
+	Default Continue Cursor Index [2]
+	Default End Cursor Index [2]
+	Cursors...
+		Graphics Source TGI [16] (Expected to be a sprite animation, but can be a static image if desired)
+		Default Loc Flags [2]
+			0 - Text end
+			1 - Bottom left
+			2 - Bottom center
+		Default Loc X Offset [2] (Signed - can go outside box)
+		Default Loc Y Offset [2] (Signed - can go outside box)
+Variants...
+	Change Count [2]
+	Comp Idx [2]
+	Change Enum [1]
+		Includes same values as for _LYO, plus some _TXB specific
+		0x80 Set font (in this case, value is module index, the next 16 bytes as new TGI)
+		0x81 Set font options (change value is module index)
+			Font color (LE ARGB) [4]
+			Outline color (LE ARGB) [4]
+			Font Flags [2]
+			Font Size [2]
+			(reserved) [4]
+		0x82 Set textbox location (change value is module index)
+			Extra value is just the textbox location struct
+		0x60 Set text draw rate (MSB of value is module index, other two bytes are rate)
+		0x61 Set scrolling behavior (LSB is new value, other two bytes are module index)
+		0x62 Set text drawing behavior (LSB is new value, other two bytes are module index)
+		0x63 Set continue cursor (LSB is new value, other two bytes are module index)
+		0x64 Set end cursor (LSB is new value, other two bytes are module index)
+		0x65 Set alignment (LSB is new value, other two bytes are module index)
+	Change Value [3]
+	(Additional change value) [16]
+	

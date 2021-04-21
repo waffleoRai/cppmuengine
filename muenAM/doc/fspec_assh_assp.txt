@@ -1,6 +1,6 @@
 Asset Header (ASSH)/Asset Pack(ASSP) Format Specification
-Version 1.0.0
-May 28, 2020
+Version 2.0.0
+March 19, 2021
 
 -> Little-Endian
 -> Master ASSH may be AES-CBC encrypted.
@@ -13,12 +13,13 @@ May 28, 2020
 [0x04]	Version [4]
 [0x08]	File Size [8]
 			-> Total, including this field and magic #
-[0x10]	Offset to path table [4]
+[0x10]	Offset to path/name table [4] (Path table if V1, name table if V2)
 			-> Relative to file start
 [0x14]	Offset to asset table [4]
 			-> Relative to file start
 			
 ------------ Path Table ------------
+[THIS HAS BEEN MOVED TO init.bin !!]
 Strings correlating to assp paths.
 Paths are relative to directory containing ASSH, unix style.
 For windows, need to reverse slashes.
@@ -29,34 +30,49 @@ Program will need to sub in current directory to get absolute paths.
 	[] Offset to string start [4]
 		-> Relative to path table start
 [0x04 + 4n]	
-	Null terminated strings...
+	Null terminated strings... (ASCII -- Root path for installation may be unicode, but internal file paths may NOT)
+
+------------ Name Table ------------
+Table of (release) asset names by index. 
+
+[0x00]	Entry Count [4]
+[0x04]	Pointer Table... [4*n]
+	[] Offset to string start [4]
+		-> Relative to table start
+[0x04 + 4n]	
+	Asset Names... [VLS 2x2] (ASCII)
+	
+For assets with no name or name omitted from this build, there's just a short 0
+The PROJ file allows UTF8 names for assets (for builder view), but ASSHs used in play builds are ASCII only.
+	Assets have no name by default when packaged into build, but user can tell packager to name those user wants to call easily from their code - engine does map assets by name when names are present. (ASCII name -> TGI)
 
 ------------ Asset Table ------------
 Asset TGI entries mapped to file locations.
 
 [0x00] Entry Count [4]
-[0x04] Entries... [64*n]
+[0x04] Entries... [80*n]
 	Type [4]
 	Group [4]
 	Instance [8]
-	File Path Index [4]
-	Offset [8]
-	Size [8]
-	Flags [1]
+	Flags [2]
 		0: Is XOR'd with TGI
 		1-2: Compression (beyond type standard)
 			0 - None
 			1 - DEFLATE
-	Padding [7]
+	(Padding) [2]
+	File Path Index [4]
+	Offset [8]
+	Size in package[8]
+	Decomp Size [8]
 	SHA256 Checksum [32]
 	
 =========================== ASSP ===========================
 
 [0x00]	Magic # "assP" [4]
 [0x04]	Version [4]
-[0x08]	Reserved [4]
-[0x0C]	SHA256 Checksum [32]
+[0x08]	Reserved [8]
+[0x10]	SHA256 Checksum [32]
 		-> Of data (can't include ASSP header)
-[0x20]	Data...
+[0x30]	Data...
 
 
