@@ -4,6 +4,7 @@
 #include "quickDefs.h"
 #include <string.h>
 #include <uchar.h>
+#include <stdlib.h>
 
 #include "unicode/ucnv.h"
 
