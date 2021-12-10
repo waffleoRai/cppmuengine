@@ -1,9 +1,9 @@
 
 #include "quickwav.h"
 
-void quickwav_defofmtblock(wave_std* wave, int sampleRate, int bitDepth, int channels){
+void quickwav_defofmtblock(wave_std_t* wave, int sampleRate, int bitDepth, int channels){
 	
-	wavefmt_std* fmt = &(wave->fmt_chunk); //Just for ease
+	wavefmt_std_t* fmt = &(wave->fmt_chunk); //Just for ease
 
 	fmt->chunk_size = 0x10;
 	fmt->comp_code = 1; //Uncomp PCM
@@ -15,12 +15,12 @@ void quickwav_defofmtblock(wave_std* wave, int sampleRate, int bitDepth, int cha
 	
 }
 
-wav_writer* quickwav_openwriter(wave_std* wave, char* output_path, uint32_t datafmt_flags){
+wav_writer_t* quickwav_openwriter(wave_std_t* wave, char* output_path, uint32_t datafmt_flags){
 	
 	if(!wave) return NULL;
 	if(!output_path) return NULL;
 	
-	wav_writer* wwtr = (wav_writer*)malloc(sizeof(wav_writer));
+	wav_writer_t* wwtr = (wav_writer_t*)malloc(sizeof(wav_writer_t));
 	wwtr->outpath = output_path;
 	
 	//Other fields
@@ -44,7 +44,7 @@ wav_writer* quickwav_openwriter(wave_std* wave, char* output_path, uint32_t data
 	return wwtr;
 }
 
-size_t quickwav_writeframes(wav_writer* writer, int frames){
+size_t quickwav_writeframes(wav_writer_t* writer, int frames){
 
 	if(!writer) return 0;
 	if(frames <= 0) return 0;
@@ -63,8 +63,8 @@ size_t quickwav_writeframes(wav_writer* writer, int frames){
 			uint8_t* tmp = (uint8_t*)malloc(by_per_samp);
 			for(i = 0; i < frames; i++){
 				for(j = 0; j < ch; j++){
-					memcpy(tmp, *(writer->data_pos), by_per_samp);
-					*(writer->data_pos) += by_per_samp;
+					memcpy(tmp, *(writer->data_pos + j), by_per_samp);
+					*(writer->data_pos + j) += by_per_samp;
 					reverseBytes(tmp, by_per_samp);
 					written += fwrite(tmp, 1, by_per_samp, writer->datfile);
 				}
@@ -75,7 +75,7 @@ size_t quickwav_writeframes(wav_writer* writer, int frames){
 			int framesize = by_per_samp * ch;
 			int totalsize = framesize * frames;
 			written += fwrite(*(writer->data_pos), 1, totalsize, writer->datfile);
-			*(writer->data_pos) += totalsize;
+			(writer->data_pos) += totalsize;
 		}
 		
 	}
@@ -109,7 +109,7 @@ size_t quickwav_writeframes(wav_writer* writer, int frames){
 	return written;
 }
 
-void quickwav_completewrite(wav_writer* writer){
+void quickwav_completewrite(wav_writer_t* writer){
 	//TODO
 	//Close the temp file
 	//Open the final file

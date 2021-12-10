@@ -86,7 +86,7 @@ const bool ArrayWindow::setRandomAccessPosition(uint pos){
 }
 
 const bool ArrayWindow::setRandomAccessPositionBack(uint pos_from_back){
-    if(pos_from_back >= used_size) return false;
+    if(pos_from_back > used_size) return false;
     ubyte* mpos = write_pos - pos_from_back;
     if(mpos < buffer_start) mpos = buffer_end - (buffer_start - mpos);
     random_pos = mpos;
@@ -134,12 +134,18 @@ const uint LZ77Decompressor::bufferBlock(){
 
     //Backcopy...
     if(backread_count > 0){
-        if(!bwin.setRandomAccessPositionBack(backread_off)) return count;
+        if (!bwin.setRandomAccessPositionBack(backread_off)) {
+            printf("DEBUG -- Uh oh, we have a back window problem... Read count: 0x%llx\n", read_count);
+            return count;
+        } 
         for(uint i = 0; i < backread_count; i++){
             ubyte b = bwin.getNextRAByte();
 
             if(rwin.put(b)) count++;
-            else return count;
+            else {
+                printf("DEBUG -- Uh oh, we have a read window problem... Read count: 0x%llx\n", read_count);
+                return count;
+            }
 
             if(bwin.isFull()) bwin.pop();
             bwin.put(b);

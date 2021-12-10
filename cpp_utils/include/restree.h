@@ -63,6 +63,7 @@ public:
 	size_t decompSize = ~0ULL;
 	u16 misc_flags = 0;
 	bool compressed = false;
+	bool isValid = true;
 	string name;
 
 	ResourceCard() :key(), name("") {};
@@ -71,12 +72,12 @@ public:
 	ResourceCard(const ResourceCard& other) :key(other.key), filepath(other.filepath), offset(other.offset), rawSize(other.rawSize), decompSize(other.decompSize), compressed(other.compressed) {};
 
 	ResourceCard& operator=(const ResourceCard& other);
-	bool operator==(const ResourceCard& other) const { return key == other.key; }
-	bool operator!=(const ResourceCard& other) const { return key != other.key; }
-	bool operator>=(const ResourceCard& other) const { return key >= other.key; }
-	bool operator>(const ResourceCard& other) const { return key > other.key; }
-	bool operator<=(const ResourceCard& other) const { return key <= other.key; }
-	bool operator<(const ResourceCard& other) const { return key < other.key; }
+	bool operator==(const ResourceCard& other) const;
+	bool operator!=(const ResourceCard& other) const;
+	bool operator>=(const ResourceCard& other) const;
+	bool operator>(const ResourceCard& other) const;
+	bool operator<=(const ResourceCard& other) const;
+	bool operator<(const ResourceCard& other) const;
 
 	virtual const size_t pathLength();
 	virtual const size_t getUnicodePath(char16_t* dst, size_t dstcap);
@@ -103,7 +104,7 @@ public:
 };
 
 class WRCU_DLL_API PathTable{
-	//TODO switch to vector?
+
 private:
     //list<string> str_list;
 	UnicodeString basepath = "";

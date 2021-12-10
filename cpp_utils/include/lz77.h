@@ -93,7 +93,8 @@ public:
 	const bool streamEnd() const override;
 
 	void setFreeOnCloseFlag(bool b){flag_free_on_close = b;}
-	void open() override {}
+    const bool isOpen() const override { return src.isOpen(); }
+	virtual void open() override {}
 	void close() override;
 
 	virtual ~LZ77Decompressor(){};

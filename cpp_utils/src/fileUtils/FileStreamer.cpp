@@ -144,7 +144,7 @@ const size_t DataInputStreamer::skip(streampos amt){
 
 void DataInputStreamer::close(){
     if(closed) return;
-    iSource.close();
+    //iSource.close(); //This is commented out because it should be handled by the free on close flag. Otherwise this causes issues if the source is deleted first.
     if(flag_free_on_close) delete &iSource;
 	if (uconv) ucnv_close(uconv);
     closed = true;
@@ -239,7 +239,7 @@ void FileInputStreamer::close(){
 		oOpenStream->close();
 		if(oOpenStream->is_open()) throw InputException("waffleoRai_Utils::FileInputStreamer::close","Failed to close stream!");
 		delete oOpenStream;
-		oOpenStream = nullptr;
+		oOpenStream = NULL;
 	}
 }
 

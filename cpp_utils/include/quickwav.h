@@ -3,6 +3,7 @@
 
 #include "byteorder.h"
 #include <string.h>
+#include <stdio.h>
 
 #define WAVWRITE_FLAG_IS_BIGENDIAN 0x1
 #define WAVWRITE_FLAG_PRE_INTERLEAVED 0x2
@@ -78,10 +79,10 @@ typedef struct wav_writer{
 	
 } wav_writer_t;
 
-void quickwav_defofmtblock(wave_std* wave, int sampleRate, int bitDepth, int channels);
-wav_writer* quickwav_openwriter(wave_std* wave, char* output_path, uint32_t datafmt_flags);
-size_t quickwav_writeframes(wav_writer* writer, int frames);
-void quickwav_completewrite(wav_writer* writer); //Also closes writer
+void quickwav_defofmtblock(wave_std_t* wave, int sampleRate, int bitDepth, int channels);
+wav_writer_t* quickwav_openwriter(wave_std_t* wave, char* output_path, uint32_t datafmt_flags);
+size_t quickwav_writeframes(wav_writer_t* writer, int frames);
+void quickwav_completewrite(wav_writer_t* writer); //Also closes writer
 
 
 #endif //QUICKWAV_H_INCLUDED

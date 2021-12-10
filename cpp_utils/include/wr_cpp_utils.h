@@ -16,6 +16,7 @@ namespace waffleoRai_Utils
 //Unicode
 
 
+
 //Exceptions
 
 class WRCU_DLL_API NullPointerException:public exception

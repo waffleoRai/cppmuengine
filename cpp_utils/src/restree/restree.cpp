@@ -37,25 +37,51 @@ bool ResourceKey::operator!=(const ResourceKey& other) const{
 }
 
 bool ResourceKey::operator>=(const ResourceKey& other) const{
-	if((*this) == other) return true;
-	return (*this) > other;
+	if (typeID != other.typeID) {
+		if (typeID < other.typeID) return false;
+		else return true;
+	}
+	if (groupID != other.groupID) {
+		if (groupID < other.groupID) return false;
+		else return true;
+	}
+	if (instanceID < other.instanceID) return false;
+	return true;
 }
 
 bool ResourceKey::operator<=(const ResourceKey& other) const{
-	if((*this) == other) return true;
-	return (*this) < other;
+	if (typeID != other.typeID) {
+		if (typeID > other.typeID) return false;
+		else return true;
+	}
+	if (groupID != other.groupID) {
+		if (groupID > other.groupID) return false;
+		else return true;
+	}
+	if (instanceID > other.instanceID) return false;
+	return true;
 }
 
 bool ResourceKey::operator>(const ResourceKey& other) const{
+	//I guess this needs to be more thorough for MSVC...
 	if(typeID > other.typeID) return true;
+	if (typeID < other.typeID) return false;
+
 	if(groupID > other.groupID) return true;
+	if (groupID < other.groupID) return false;
+
 	if(instanceID > other.instanceID) return true;
 	return false;
 }
 
 bool ResourceKey::operator<(const ResourceKey& other) const{
+	//I guess this needs to be more thorough for MSVC...
 	if(typeID < other.typeID) return true;
+	if (typeID > other.typeID) return false;
+
 	if(groupID < other.groupID) return true;
+	if (groupID > other.groupID) return false;
+
 	if(instanceID < other.instanceID) return true;
 	return false;
 }
@@ -113,6 +139,30 @@ const size_t ResourceCard::getUnicodePath(char16_t* dst, size_t dstcap) {
 
 	*(dst) = '\0';
 	return count;
+}
+
+bool ResourceCard::operator==(const ResourceCard& other) const { 
+	return key == other.key; 
+}
+
+bool ResourceCard::operator!=(const ResourceCard& other) const { 
+	return key != other.key; 
+}
+
+bool ResourceCard::operator>=(const ResourceCard& other) const { 
+	return key >= other.key; 
+}
+
+bool ResourceCard::operator>(const ResourceCard& other) const {
+	return key > other.key; 
+}
+
+bool ResourceCard::operator<=(const ResourceCard& other) const {
+	return key <= other.key; 
+}
+
+bool ResourceCard::operator<(const ResourceCard& other) const {
+	return key < other.key; 
 }
 
 /*--- Path Table ---*/
@@ -222,7 +272,8 @@ const int ResourceMap::countCards() const{
 }
 
 const bool ResourceMap::hasCard(const ResourceKey& key) const{
-	map<ResourceKey, ResourceCard>::const_iterator itr = rMap.find(key);
+	//printf("KEY: %08x:%08x:%016llx\n", key.typeID, key.groupID, key.instanceID);
+	map<ResourceKey, ResourceCard>::const_iterator itr = rMap.find(key); //There is some issue with this - "invalid comparator???"
 	return(itr != rMap.end());
 }
 
