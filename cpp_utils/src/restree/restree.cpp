@@ -7,7 +7,11 @@
 
 #include "restree.h"
 
-using namespace std;
+using std::map;
+using std::vector;
+using std::list;
+using icu::UnicodeString;
+using std::filesystem::path;
 
 namespace waffleoRai_Utils{
 
@@ -101,46 +105,6 @@ ResourceCard& ResourceCard::operator=(const ResourceCard& other){
     return *this;
 }
 
-const size_t ResourceCard::pathLength() {
-	size_t len = 0;
-	
-	if (pathroot) len += static_cast<size_t>(pathroot->length()) + 1;
-	if (filepath) len += filepath->length();
-
-	return len;
-}
-
-const size_t ResourceCard::getUnicodePath(char16_t* dst, size_t dstcap) {
-	if (!dst || dstcap < 1) return 0;
-
-	char16_t* lim = (dst + dstcap) - 1; 
-	size_t count = 0;
-	size_t strlen = 0;
-	size_t i = 0;
-	if (pathroot) {
-		//Copy pathroot and filesep
-		strlen = static_cast<size_t>(pathroot->length());
-		for (i = 0; i < strlen; i++) {
-			if (dst >= lim) break;
-			*(dst++) = pathroot->charAt(i);
-			count++;
-		}
-		if (dst < lim) { *(dst++) = FILE_SEP16; count++; }
-	}
-
-	if ((dst < lim) && filepath) {
-		strlen = static_cast<size_t>(filepath->length());
-		for (i = 0; i < strlen; i++) {
-			if (dst >= lim) break;
-			*(dst++) = filepath->at(i);
-			count++;
-		}
-	}
-
-	*(dst) = '\0';
-	return count;
-}
-
 bool ResourceCard::operator==(const ResourceCard& other) const { 
 	return key == other.key; 
 }
@@ -167,28 +131,26 @@ bool ResourceCard::operator<(const ResourceCard& other) const {
 
 /*--- Path Table ---*/
 
-const string& PathTable::getPathAtIndex(const int idx) {
+const path& PathTable::getPathAtIndex(const int idx) {
 	if (idx < 0 || idx >= str_vec.size()) throw IndexOutOfBoundsException("waffleoRai_Utils::PathTable::getPathAtIndex","Index is invalid!");
 	return str_vec[idx];
 }
 
-const string& PathTable::addPath(const string& strpath) {
-	str_vec.push_back(strpath);
-	return str_vec.back();
+const int PathTable::findPath(const path& p) {
+	vector<path>::const_iterator itr;
+	int i = 0;
+	for (itr = str_vec.begin(); itr < str_vec.end(); itr++) {
+		if (*(itr) == p) return i;
+		i++;
+	}
+	return -1;
 }
 
-const string& PathTable::addPath(const char* path) {
-	str_vec.push_back(path);
-	return str_vec.back();
-}
-
-const UnicodeString& PathTable::getBasePath() {
-	return basepath;
-}
-
-const UnicodeString& PathTable::setBasePath(const UnicodeString& in) {
-	basepath = in;
-	return basepath;
+const int PathTable::addPath(const path& p) {
+	int idx = findPath(p);
+	if (idx >= 0) return idx;
+	str_vec.push_back(p);
+	return str_vec.size();
 }
 
 /*--- Resource Map ---*/
@@ -202,7 +164,7 @@ ResourceCard& ResourceMap::getCard(ResourceKey& key){
 	try{
 		return rMap.at(key);
 	}
-	catch(out_of_range& ex){
+	catch(std::out_of_range& ex){
 		throw NoResourceCardException("waffleoRai_Utils::ResourceMap::getCard", "Resource card with requested key not in map!", key);
 	}
 }

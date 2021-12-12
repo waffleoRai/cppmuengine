@@ -13,14 +13,15 @@
 #include <map>
 #include <stdexcept>
 #include <cstddef>
+#include <filesystem> //Need C++ 17 !
 
 #include "wr_cpp_utils.h"
 
-//using namespace std;
 using std::map;
 using std::vector;
 using std::list;
-using namespace icu;
+using icu::UnicodeString;
+using std::filesystem::path;
 
 namespace waffleoRai_Utils{
 
@@ -56,8 +57,7 @@ class WRCU_DLL_API ResourceCard {
 
 public:
 	ResourceKey key;
-	const UnicodeString* pathroot = nullptr;
-	const string* filepath = nullptr; //Reference should be to something in path table for mem management
+	const path* filepath = nullptr; //Reference should be to something in path table for mem management
 	u64 offset = ~0ULL;
 	size_t rawSize = ~0ULL; //In TS3 Top bit is always set. Why? No one knows. Will unset upon readin.
 	size_t decompSize = ~0ULL;
@@ -67,8 +67,8 @@ public:
 	string name;
 
 	ResourceCard() :key(), name("") {};
-	ResourceCard(const ResourceKey& rkey, string& path) :key(rkey), filepath(&path), name("") {};
-	ResourceCard(const u32 type, const u32 group, const u64 instance, string& path) :key(type, group, instance), filepath(&path) {};
+	ResourceCard(const ResourceKey& rkey, const path& path) :key(rkey), filepath(&path), name("") {};
+	ResourceCard(const u32 type, const u32 group, const u64 instance, const path& path) :key(type, group, instance), filepath(&path) {};
 	ResourceCard(const ResourceCard& other) :key(other.key), filepath(other.filepath), offset(other.offset), rawSize(other.rawSize), decompSize(other.decompSize), compressed(other.compressed) {};
 
 	ResourceCard& operator=(const ResourceCard& other);
@@ -79,13 +79,12 @@ public:
 	bool operator<=(const ResourceCard& other) const;
 	bool operator<(const ResourceCard& other) const;
 
-	virtual const size_t pathLength();
-	virtual const size_t getUnicodePath(char16_t* dst, size_t dstcap);
-
 	virtual ~ResourceCard() {}
 };
 
 /*--- Resource Map ---*/
+
+typedef std::map<ResourceKey, ResourceCard>::const_iterator ResMapItr;
 
 class WRCU_DLL_API NoResourceCardException:public exception
 {
@@ -106,25 +105,21 @@ public:
 class WRCU_DLL_API PathTable{
 
 private:
-    //list<string> str_list;
-	UnicodeString basepath = "";
-	vector<string> str_vec;
+	vector<path> str_vec;
 
 public:
-    /*PathTable():str_list(){};
-    const string& addPath(const string& strpath){str_list.push_back(strpath); return str_list.back();}
-    void clear(){str_list.clear();}
-    const size_t getSize(){return str_list.size();}*/
-
+	PathTable() :str_vec(4) {}
 	PathTable(size_t init_alloc) :str_vec(init_alloc){}
 	void clear() { str_vec.clear(); }
 	const size_t getSize() { return str_vec.size(); }
-	const string& getPathAtIndex(const int idx);
-	const UnicodeString& getBasePath();
+	const path& getPathAtIndex(const int idx);
 
-	const string& addPath(const string& strpath);
-	const string& addPath(const char* path);
-	const UnicodeString& setBasePath(const UnicodeString& in);
+	const int addPath(const path& p);
+	const int findPath(const path& p);
+
+	void realloc(const size_t alloc_sz) {
+		str_vec.reserve(alloc_sz);
+	}
 
 };
 
@@ -144,6 +139,9 @@ public:
 	const int getAllCards(list<const ResourceCard*>& target) const;
 
 	const int countCards() const;
+
+	ResMapItr begin() { return rMap.begin(); };
+	ResMapItr end() { return rMap.end(); };
 
 	const bool hasCard(const ResourceKey& key) const;
 	ResourceCard* addCard(const ResourceCard& card);

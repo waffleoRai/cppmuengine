@@ -126,6 +126,7 @@ private:
 
 public:
 
+	FileInputStreamer(const path& path) :sFilePath(path), oOpenStream(nullptr) {}
     FileInputStreamer(const string& ascii_path):sFilePath(ascii_path),oOpenStream(nullptr){}
     FileInputStreamer(const char* ascii_path):sFilePath(ascii_path),oOpenStream(nullptr){}
     FileInputStreamer(const char16_t* utf16_path):sFilePath(utf16_path),oOpenStream(nullptr){}
@@ -241,6 +242,7 @@ private:
     ofstream* oOpenStream;
 
 public:
+	FileOutputStreamer(const path& path) :sFilePath(path), oOpenStream(nullptr) {}
     FileOutputStreamer(const string& ascii_path):sFilePath(ascii_path),oOpenStream(nullptr){}
     FileOutputStreamer(const char* ascii_path):sFilePath(ascii_path),oOpenStream(nullptr){}
     FileOutputStreamer(const char16_t* utf16_path):sFilePath(utf16_path),oOpenStream(nullptr){}
