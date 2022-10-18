@@ -10,8 +10,7 @@
 using std::string;
 using std::exception;
 
-namespace waffleoRai_Utils
-{
+namespace waffleoRai_Utils{
 
 //Unicode
 

@@ -7,16 +7,19 @@
 #include <filesystem> //Need C++ 17 !
 //#include <sys/stat.h>
 
-//using namespace std;
 using std::ifstream;
 using std::streampos;
 using std::ofstream;
 using std::cout;
-using namespace std::filesystem;
-using namespace icu;
+using std::filesystem::path;
+using icu::UnicodeString;
 
 namespace waffleoRai_Utils
 {
+
+//TODO Maybe add some general functions for:
+	//	Loading a whole file into memory (and release that memory)
+	//	Getting a DataStreamerSource that is a part of a file (path, start, end)
 
 enum class WRCU_DLL_API Endianness {little_endian,big_endian};
 
@@ -33,6 +36,11 @@ public:
 	virtual void open() = 0;
 	virtual void close() = 0;
 	virtual const bool isOpen() const = 0;
+	virtual const bool resetReadCounter() { return false; }
+
+	//Does nothing by default
+	virtual const bool isSeekable() const;
+	virtual const streampos seek(const streampos pos);
 
 	virtual const size_t nextBytes(ubyte* dst, const size_t len); //Default implementation just calls nextByte()
 
@@ -124,6 +132,9 @@ private:
     size_t read = 0;
     size_t maxsz = 0; //Field to save file size so don't have to retrieve from OS when remainingBytes() is called.
 
+	streampos start_boundary = 0;
+	streampos end_boundary = 0;
+
 public:
 
 	FileInputStreamer(const path& path) :sFilePath(path), oOpenStream(nullptr) {}
@@ -135,6 +146,25 @@ public:
     const path& getPath() const{return sFilePath;}
 
     const size_t fileSize() const;
+	const streampos getStartBoundary() const { return start_boundary; }
+	const streampos getEndBoundary() const { return end_boundary; }
+	
+	const streampos setStartBoundary(const streampos position) {
+		if (start_boundary >= 0 && start_boundary < end_boundary) {
+			start_boundary = position;
+		}
+		return start_boundary;
+	}
+	
+	const streampos setEndBoundary(const streampos position) { 
+		if (end_boundary <= maxsz && end_boundary > start_boundary) {
+			end_boundary = position;
+		}
+		return end_boundary;
+	}
+
+	const bool isSeekable() const override;
+	const streampos seek(const streampos pos) override;
 
     const bool isOpen() const override;
     const bool streamEnd() const override;
@@ -143,6 +173,7 @@ public:
     const bool isFail() const;
     const size_t remaining() const override;
     const size_t bytesRead() const{return read;}
+	const bool resetReadCounter() override { read = 0; return true; }
 
     void open() override;
     void open(const streampos startOffset);
@@ -154,6 +185,51 @@ public:
     const ubyte nextByte() override;
 
     virtual ~FileInputStreamer(){close();}
+
+};
+
+class WRCU_DLL_API ifstreamer :public DataStreamerSource
+{
+
+private:
+	ifstream* stream;
+	size_t read = 0;
+	size_t maxsz = 0;
+	streampos start_boundary = 0;
+
+	bool close_source_on_close = false;
+	bool destroy_source_on_close = false;
+
+public:
+
+	ifstreamer(ifstream& source, size_t size_bytes) :stream(&source), maxsz(size_bytes) {}
+
+	const size_t fileSize() const;
+
+	const bool isOpen() const override;
+	const bool streamEnd() const override;
+	const bool isGood() const;
+	const bool isBad() const;
+	const bool isFail() const;
+	const size_t remaining() const override;
+	const size_t bytesRead() const;
+	const bool resetReadCounter() override { read = 0; return true; }
+
+	const bool isSeekable() const override;
+	const streampos seek(const streampos pos) override;
+
+	void open() override;
+	void skip(const streampos skip_amt);
+	void close() override;
+	const ifstream& getStreamView();
+
+	const ubyte nextByte() override;
+	const size_t nextBytes(ubyte* dst, const size_t len) override;
+
+	void setCloseStreamOnClose(const bool flag) { close_source_on_close = flag; }
+	void setDestroyStreamOnClose(const bool flag) { destroy_source_on_close = flag; }
+
+	virtual ~ifstreamer() { close(); }
 
 };
 

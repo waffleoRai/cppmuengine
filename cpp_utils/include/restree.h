@@ -20,7 +20,6 @@
 using std::map;
 using std::vector;
 using std::list;
-using icu::UnicodeString;
 using std::filesystem::path;
 
 namespace waffleoRai_Utils{
@@ -32,7 +31,7 @@ typedef struct WRCU_DLL_API ResourceKey{
 public:
 	u32 typeID = ~0; //Technically this is an enum
 	u32 groupID = ~0;
-	u64 instanceID = ~0;
+	u64 instanceID = ~0ULL;
 
 //Quick constructor
     ResourceKey(){};
@@ -107,9 +106,11 @@ class WRCU_DLL_API PathTable{
 private:
 	vector<path> str_vec;
 
+	void init_core(const size_t init_alloc);
+
 public:
-	PathTable() :str_vec(4) {}
-	PathTable(size_t init_alloc) :str_vec(init_alloc){}
+	PathTable() :str_vec() { init_core(4); }
+	PathTable(const size_t init_alloc) :str_vec(){ init_core(init_alloc); }
 	void clear() { str_vec.clear(); }
 	const size_t getSize() { return str_vec.size(); }
 	const path& getPathAtIndex(const int idx);
@@ -142,9 +143,11 @@ public:
 
 	ResMapItr begin() { return rMap.begin(); };
 	ResMapItr end() { return rMap.end(); };
+	map<ResourceKey, ResourceCard>& getMapView() { return rMap; };
 
 	const bool hasCard(const ResourceKey& key) const;
-	ResourceCard* addCard(const ResourceCard& card);
+	ResourceCard* addCard(const ResourceKey& key);
+	ResourceCard* addCard(const ResourceCard& card, const bool allow_overwrite);
 	const bool removeCard(const ResourceKey& key);
 	void clearCards();
 

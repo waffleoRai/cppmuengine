@@ -2,15 +2,14 @@
 #define LZ77_H_INCLUDED
 
 #define READ_BUFFER_SIZE 512
+#define WRITE_BUFFER_SIZE 512
 
 #include "FileStreamer.h"
-
-//using namespace std;
 
 namespace waffleoRai_Utils
 {
 
-class ArrayWindow{
+class WRCU_DLL_API ArrayWindow{
 
 private:
     ubyte* buffer_start; //Used for alloc
@@ -46,6 +45,7 @@ public:
     const bool setRandomAccessPosition(uint pos);
     const bool setRandomAccessPositionBack(uint pos_from_back);
     const ubyte getNextRAByte();
+    const ubyte getByteAt(uint pos);
 
     const size_t getCurrentSize() const;
     const size_t getCapacity() const;
@@ -55,7 +55,7 @@ public:
 
 };
 
-class LZ77Decompressor: public DataStreamerSource{
+class WRCU_DLL_API LZ77Decompressor: public DataStreamerSource{
 
 private:
     bool flag_free_on_close = false;
@@ -99,6 +99,52 @@ public:
 
 	virtual ~LZ77Decompressor(){};
 
+};
+
+class WRCU_DLL_API LZ77Compressor : public DataStreamerSource {
+private:
+    bool flag_free_on_close = false;
+    bool closed = false;
+
+protected:
+    DataStreamerSource& src;
+
+    size_t input_bytes = 0LL;
+    size_t output_bytes = 0LL;
+
+    size_t back_win_size;
+    ArrayWindow bwin;
+
+    ArrayWindow fwin;
+    size_t front_win_size;
+
+    ArrayWindow write_buffer;
+
+    u32 streak_count = 0;
+    u32 streak_off = 0;
+
+    virtual void processNextByte(); //Writes to streak_count and streak_off
+    virtual const int encodeToWriteBuffer() = 0; //Uses streak_count and streak_off and front window to encode next block. Returns # bytes read.
+
+public:
+    LZ77Compressor(DataStreamerSource& data_source, size_t front_window_size, size_t back_window_size):DataStreamerSource(),src(data_source),
+        back_win_size(back_window_size), bwin(back_window_size), fwin(front_window_size), front_win_size(front_window_size), write_buffer(WRITE_BUFFER_SIZE){}
+
+    DataStreamerSource& getSource() { return src; }
+
+    const ubyte nextByte() override;
+    const size_t remaining() const override;
+    const bool streamEnd() const override;
+
+    const size_t getInputLength() { return input_bytes; }
+    const size_t getOutputLength() { return output_bytes; }
+
+    void setFreeOnCloseFlag(bool b) { flag_free_on_close = b; }
+    const bool isOpen() const override { return src.isOpen(); }
+    virtual void open() override {}
+    void close() override;
+
+    virtual ~LZ77Compressor() {};
 };
 
 }

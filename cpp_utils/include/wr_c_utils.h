@@ -5,14 +5,19 @@
 #include <string.h>
 #include <uchar.h>
 #include <stdlib.h>
+#include <time.h>
 
 #include "unicode/ucnv.h"
 
 #define WRCU_ICU_ENAME_UTF8 "UTF8"
+#define WRCU_ICU_ENAME_UTF16BE "UTF16BE"
+#define WRCU_ICU_ENAME_UTF16LE "UTF16LE"
 #define WRCU_ICU_ENAME_UTF32BE "UTF32BE"
 #define WRCU_ICU_ENAME_UTF32LE "UTF32LE"
 
 #define SYS_BIG_ENDIAN !*((uint8_t*)&((uint16_t){1}))
+
+//Also use macros _TARGET_LE and _TARGET_BE
 
 #ifdef _WIN32
 #    ifdef WRCU_BUILD
@@ -23,7 +28,7 @@
 #	define WRCU_CDECL __cdecl
 #	define WRCU_STDCALL __stdcall
 #	define FILE_SEP '\\'
-#elif
+#else
 #   define WRCU_DLL_API
 #	define WRCU_CDECL
 #	define WRCU_STDCALL
@@ -37,6 +42,11 @@ extern "C" {
 #endif
 
 	extern const char16_t FILE_SEP16;
+	extern int timezone_offset_set;
+	extern double timezone_offset;
+
+	void WRCU_CDECL calculateTimezoneOffset();
+	WRCU_DLL_API double WRCU_CDECL getTimezoneOffset();
 
 	//Number/String conversion
 

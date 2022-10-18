@@ -3,6 +3,9 @@
 
 #include <stdint.h>
 
+#define TRUE 1
+#define FALSE 0
+
 typedef unsigned char uchar;
 typedef unsigned short ushort;
 typedef unsigned int uint;

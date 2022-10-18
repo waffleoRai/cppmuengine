@@ -1,10 +1,7 @@
 
 #include "lz77.h"
 
-using namespace std;
-
-namespace waffleoRai_Utils
-{
+namespace waffleoRai_Utils{
 
 /*--- Array Window ---*/
 
@@ -101,6 +98,13 @@ const ubyte ArrayWindow::getNextRAByte(){
     return b;
 }
 
+const ubyte ArrayWindow::getByteAt(uint pos) {
+    if (pos >= used_size) return 0;
+    ubyte* mpos = read_pos + pos;
+    if (mpos >= buffer_end) mpos = buffer_start + (mpos - buffer_end);
+    return *mpos;
+}
+
 const size_t ArrayWindow::getCurrentSize() const{
     return used_size;
 }
@@ -180,6 +184,98 @@ void LZ77Decompressor::close(){
     if(closed) return;
     src.close();
     if(flag_free_on_close) delete &src;
+    closed = true;
+}
+
+/*--- LZ77 Compressor ---*/
+
+void LZ77Compressor::processNextByte() {
+    u32 fpos = 0;
+    u32 bpos = 0;
+    u32 bsize, fsize;
+    int spos = 0;
+    bool usef = false;
+    ubyte bytef = 0, byter = 0;
+
+    streak_count = 0;
+    streak_off = 0;
+    bsize = bwin.getCurrentSize();
+    fsize = fwin.getCurrentSize();
+    
+    for (bpos = 0; bpos < bsize; bpos++) {
+        bwin.setRandomAccessPositionBack(bpos);
+        fwin.setRandomAccessPosition(0);
+        spos = bpos; usef = false;
+
+        //How long a streak can you get from here?
+        //(Don't forget that it should continue to the forward window if back ends...)
+        usef = false;
+        do {
+            if (fpos >= fsize) break;
+            if (usef && (spos >= fsize)) break;
+
+            bytef = fwin.getNextRAByte(); fpos++;
+            if (usef) {
+                byter = fwin.getByteAt(spos++);
+            }
+            else {
+                byter = bwin.getNextRAByte(); spos--;
+                if (spos < 0) {
+                    usef = true;
+                    spos = 0;
+                }
+            }
+        } while (bytef == byter);
+
+        //fpos represents how many were read, which may be one more than were matched.
+        if (bytef != byter) fpos--; //If it broke from mismatch, not because end was reached.
+        if (fpos > streak_count) {
+            streak_count = fpos;
+            streak_off = bpos;
+        }
+    }
+}
+
+const ubyte LZ77Compressor::nextByte() {
+    int read = 0;
+    int i = 0;
+
+    if (!write_buffer.isEmpty()) {
+        output_bytes++;
+        return write_buffer.pop();
+    }
+
+    while (!fwin.isFull() && !src.streamEnd()) {
+        fwin.put(src.nextByte());
+        input_bytes++;
+    }
+
+    if (fwin.isEmpty()) return 0;
+    processNextByte();
+    read = encodeToWriteBuffer();
+
+    for (i = 0; i < read; i++) {
+        if (bwin.isFull()) bwin.pop();
+        bwin.put(fwin.pop());
+    }
+
+    output_bytes++;
+    return write_buffer.pop();
+}
+
+const size_t LZ77Compressor::remaining() const {
+    //HMMMMM that's a problem. Might just have to return what's in the write buffer.
+    return write_buffer.getCurrentSize();
+}
+
+const bool LZ77Compressor::streamEnd() const {
+    return write_buffer.isEmpty() && fwin.isEmpty() && src.streamEnd();
+}
+
+void LZ77Compressor::close() {
+    if (closed) return;
+    src.close();
+    if (flag_free_on_close) delete& src;
     closed = true;
 }
 

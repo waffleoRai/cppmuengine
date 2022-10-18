@@ -7,12 +7,6 @@
 
 #include "restree.h"
 
-using std::map;
-using std::vector;
-using std::list;
-using icu::UnicodeString;
-using std::filesystem::path;
-
 namespace waffleoRai_Utils{
 
 /*--- Resource Key ---*/
@@ -131,6 +125,10 @@ bool ResourceCard::operator<(const ResourceCard& other) const {
 
 /*--- Path Table ---*/
 
+void PathTable::init_core(const size_t init_alloc) {
+	str_vec.reserve(init_alloc);
+}
+
 const path& PathTable::getPathAtIndex(const int idx) {
 	if (idx < 0 || idx >= str_vec.size()) throw IndexOutOfBoundsException("waffleoRai_Utils::PathTable::getPathAtIndex","Index is invalid!");
 	return str_vec[idx];
@@ -150,7 +148,7 @@ const int PathTable::addPath(const path& p) {
 	int idx = findPath(p);
 	if (idx >= 0) return idx;
 	str_vec.push_back(p);
-	return str_vec.size();
+	return str_vec.size()-1;
 }
 
 /*--- Resource Map ---*/
@@ -239,8 +237,12 @@ const bool ResourceMap::hasCard(const ResourceKey& key) const{
 	return(itr != rMap.end());
 }
 
-ResourceCard* ResourceMap::addCard(const ResourceCard& card){
-	if(hasCard(card.key)) return nullptr;
+ResourceCard* ResourceMap::addCard(const ResourceKey& key) {
+	return &rMap[key];
+}
+
+ResourceCard* ResourceMap::addCard(const ResourceCard& card, const bool allow_overwrite){
+	if(!allow_overwrite && hasCard(card.key)) return nullptr;
 	rMap[card.key] = card;
 	return &(rMap[card.key]);
 }
@@ -259,7 +261,7 @@ const int ResourceMap::copyIntoMap(ResourceMap& target, list<ResourceCard*>& out
     map<ResourceKey, ResourceCard>::const_iterator itr;
 	for (itr = rMap.begin(); itr != rMap.end(); itr++){
 		//okay = okay && target.addCard(itr->second);
-		ResourceCard* acard = target.addCard(itr->second);
+		ResourceCard* acard = target.addCard(itr->second, false);
 		if(acard != nullptr){
           output_list.push_back(acard);
           ct++;

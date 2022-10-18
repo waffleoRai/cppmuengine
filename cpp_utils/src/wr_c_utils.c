@@ -5,6 +5,35 @@
 
 const char16_t FILE_SEP16 = (const char16_t)FILE_SEP;
 
+int timezone_offset_set = FALSE;
+double timezone_offset = 0.0;
+
+void calculateTimezoneOffset() {
+    time_t now = time(0);
+    struct tm* time_ptr = NULL;
+    struct tm time_gm;
+    struct tm time_lc;
+    time_t t_gm = 0;
+    time_t t_lc = 0;
+
+    time_ptr = gmtime(&now);
+    memcpy(&time_gm, time_ptr, sizeof(struct tm));
+    t_gm = mktime(&time_gm);
+
+    time_ptr = localtime(&now);
+    memcpy(&time_lc, time_ptr, sizeof(struct tm));
+    t_lc = mktime(&time_lc);
+
+    timezone_offset = difftime(t_lc, t_gm);
+
+    timezone_offset_set = TRUE;
+}
+
+double getTimezoneOffset() {
+    if (timezone_offset_set) { return timezone_offset; }
+    calculateTimezoneOffset(); return timezone_offset;
+}
+
 const int u8_to_decstr(uint8_t value, char* dst, int mindig){
     return u64_to_decstr((uint64_t)value, dst, mindig);
 }
