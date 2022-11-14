@@ -1,7 +1,6 @@
 #include "FileStreamer.h"
 
 using std::filesystem::filesystem_error;
-using std::filesystem::file_size;
 
 namespace waffleoRai_Utils
 {
@@ -11,26 +10,93 @@ const bool sys_endian_matches(Endianness e) {
 		else return wrcu_sys_big_endian();
 }
 
-/*----- DataStreamerSource -----*/
+/*----- Common Utility -----*/
 
-const size_t  DataStreamerSource::nextBytes(ubyte* dst, const size_t len) {
-	if (!dst || len <= 0) return 0;
-	size_t i;
-	ubyte* pos = dst;
-	for (i = 0; i < len; i++) { 
-		if(streamEnd()) return static_cast<size_t>(pos - dst);
-		*(pos++) = nextByte(); 
+const bool open_file_as_input_source(FileInputStreamer& container, const streampos start_offset, const size_t len) {
+	if (container.isOpen()) return false;
+	container.open(start_offset);
+	container.setEndBoundary(start_offset + static_cast<streampos>(len));
+	return true;
+}
+
+DataStreamerSource* open_file_as_input_source(const path& filepath, const streampos start_offset, const size_t len) {
+	FileInputStreamer* fis = new FileInputStreamer(filepath);
+	if (!fis) return NULL;
+	fis->open(start_offset);
+	fis->setEndBoundary(start_offset + static_cast<streampos>(len));
+	return fis;
+}
+
+void close_file_as_input_source(DataStreamerSource* src) {
+	if (!src) return;
+	src->close();
+	delete src;
+}
+
+DataInputStreamer* open_file_as_input_reader(const path& filepath, const streampos start_offset, const size_t len, const Endianness byte_order) {
+	DataInputStreamer* dis = NULL;
+	DataStreamerSource* src = open_file_as_input_source(filepath, start_offset, len);
+	if (!src) return NULL;
+	dis = new DataInputStreamer(*src, byte_order);
+	dis->setFreeOnCloseFlag(true);
+	return dis;
+}
+
+void close_file_as_input_reader(DataInputStreamer* src) {
+	if (!src) return;
+	src->close();
+	delete src;
+}
+
+DataOutputStreamer* open_file_as_output_writer(const path& filepath, const Endianness byte_order) {
+	DataOutputStreamer* dos = NULL;
+	FileOutputStreamer* output = new FileOutputStreamer(filepath);
+	if (!output) return NULL;
+	dos = new DataOutputStreamer(*output, byte_order);
+	dos->setFreeOnCloseFlag(true);
+	return dos;
+}
+
+void close_file_as_output_writer(DataOutputStreamer* trg) {
+	if (!trg) return;
+	trg->close();
+	delete trg;
+}
+
+const size_t load_file_to_memory(const path& filepath, const streampos start_offset, const size_t len, void* dst) {
+	if (!dst) return 0;
+	ifstream input(filepath);
+	streampos start, current;
+	input.seekg(start_offset, std::ios_base::beg);
+	start = input.tellg();
+	input.read((char*)dst, len);
+	current = input.tellg();
+	input.close();
+	return static_cast<size_t>(current - start);
+}
+
+const size_t load_file_to_memory(const path& filepath, void* dst) {
+	if (!dst) return 0;
+	ifstream input(filepath);
+	size_t read = 0;
+	ubyte* dest = (ubyte*)dst;
+	int b = EOF;
+	while ((b = input.get()) != EOF) {
+		*dest++ = b;
+		read++;
 	}
-
-	return static_cast<size_t>(pos-dst);
+	input.close();
+	return read;
 }
 
-const bool DataStreamerSource::isSeekable() const {
-	return false;
-}
-
-const streampos DataStreamerSource::seek(const streampos pos) {
-	return ~0;
+const size_t write_file_from_memory(const path& filepath, const void* src, const size_t len) {
+	if (!src | len < 1) return 0;
+	streampos current;
+	ofstream output(filepath);
+	output.write((const char*)src, len);
+	current = output.tellp();
+	output.close();
+	return static_cast<size_t>(current);
 }
 
 /*----- DataInputStreamer -----*/
@@ -165,117 +231,6 @@ void DataInputStreamer::close(){
     closed = true;
 }
 
-/*----- FileInputStreamer -----*/
-
-const size_t FileInputStreamer::fileSize() const{
-	//https://stackoverflow.com/questions/5840148/how-can-i-get-a-files-size-in-c
-	/*struct stat stat_buf;
-	int rc = stat(sFilePath, &stat_buf);
-	return rc == 0 ? stat_buf.st_size : -1;*/
-
-	try {
-		return static_cast<size_t>(file_size(sFilePath));
-	}
-	catch (filesystem_error& x) { return -1LL; }
-}
-
-const bool FileInputStreamer::isOpen() const{
-    return (oOpenStream != NULL && oOpenStream->is_open());
-}
-
-const bool FileInputStreamer::streamEnd() const{
-    if(oOpenStream == NULL) return true;
-    if(!oOpenStream->is_open()) return true;
-    return (oOpenStream->eof() || (oOpenStream->tellg() >= end_boundary));
-}
-
-const bool FileInputStreamer::isGood() const{
-    if(oOpenStream == NULL) return false;
-    if(!oOpenStream->is_open()) return true;
-    return oOpenStream->good();
-}
-
-const bool FileInputStreamer::isBad() const{
-    if(oOpenStream == NULL) return false;
-    if(!oOpenStream->is_open()) return true;
-    return oOpenStream->bad();
-}
-
-const bool FileInputStreamer::isFail() const{
-    if(oOpenStream == NULL) return false;
-    if(!oOpenStream->is_open()) return true;
-    return oOpenStream->fail();
-}
-
-const size_t FileInputStreamer::remaining() const{
-	if(!isOpen()) return 0;
-	if(end_boundary < 0ULL) return 0;
-	size_t diff = static_cast<size_t>(end_boundary - oOpenStream->tellg());
-	if(diff < 0ULL) return 0;
-	return diff;
-}
-
-const ifstream& FileInputStreamer::getStreamView() const{
-	if(oOpenStream == NULL) throw InputException("waffleoRai_Utils::FileInputStreamer::getStreamView","Stream is not open!");
-	return *oOpenStream;
-}
-
-void FileInputStreamer::open(){
-	//Maybe set exception throwing instead of doing active check?
-	if(isOpen()) return;
-	read = 0;
-	end_boundary = maxsz = fileSize();
-	oOpenStream = new ifstream(sFilePath, ifstream::in|ifstream::binary);
-	if(oOpenStream->fail()) throw InputException("waffleoRai_Utils::FileInputStreamer::open","Failed to open stream!");
-}
-
-void FileInputStreamer::open(const streampos startOffset){
-	if(isOpen()) return;
-	read = 0;
-	end_boundary = maxsz = fileSize();
-	if(startOffset > maxsz) throw InputException("waffleoRai_Utils::FileInputStreamer::open","Open offset after end of file!");
-	oOpenStream = new ifstream(sFilePath, ifstream::in|ifstream::binary);
-	oOpenStream->seekg(startOffset);
-	if(oOpenStream->fail()) throw InputException("waffleoRai_Utils::FileInputStreamer::open","Failed to open stream!");
-	start_boundary = startOffset;
-}
-
-void FileInputStreamer::jumpTo(const streampos offset){
-	if(!isOpen()) return;
-	if(offset > end_boundary) throw InputException("waffleoRai_Utils::FileInputStreamer::jumpTo","Target offset after end of file!");
-	oOpenStream->seekg(offset+start_boundary);
-	if(oOpenStream->fail()) throw InputException("waffleoRai_Utils::FileInputStreamer::jumpTo","Stream seekg failed!");
-}
-
-void FileInputStreamer::skip(const streampos skip_amt){
-	streampos pos = oOpenStream->tellg();
-	jumpTo(pos + skip_amt);
-}
-
-const bool FileInputStreamer::isSeekable() const { return true; }
-
-const streampos FileInputStreamer::seek(const streampos pos) {
-	jumpTo(pos);
-	return oOpenStream->tellg() - start_boundary;
-}
-
-void FileInputStreamer::close(){
-	if(oOpenStream){
-		oOpenStream->close();
-		if(oOpenStream->is_open()) throw InputException("waffleoRai_Utils::FileInputStreamer::close","Failed to close stream!");
-		delete oOpenStream;
-		oOpenStream = NULL;
-	}
-}
-
-const ubyte FileInputStreamer::nextByte(){
-	if(!isOpen()) throw InputException("waffleoRai_Utils::FileInputStreamer::nextByte","Failed to retrieve next byte - stream is not open!");
-	int b = oOpenStream->get();
-	//if(oOpenStream->fail()) throw InputException("waffleoRai_Utils::FileInputStreamer::nextByte","Failed to retrieve next byte!");
-	read++;
-	return (ubyte)b;
-}
-
 /*----- DataOutputStreamer -----*/
 
 void DataOutputStreamer::putByte(const ubyte value){
@@ -359,53 +314,6 @@ void DataOutputStreamer::close() {
 	if (flag_free_on_close) delete &iTarget;
 	if (uconv) ucnv_close(uconv);
 	closed = true;
-}
-
-/*----- FileOutputStreamer -----*/
-
-const bool FileOutputStreamer::isOpen() const{
-	if(oOpenStream == NULL) return false;
-	return oOpenStream->is_open();
-}
-
-void FileOutputStreamer::open(){
-	close();
-	oOpenStream = new ofstream(sFilePath.c_str(), (ofstream::out | ofstream::binary));
-	if(oOpenStream->fail()) throw InputException("waffleoRai_Utils::FileOutputStreamer::open","Failed to open stream!");
-}
-
-void FileOutputStreamer::openForAppending(){
-	close();
-	oOpenStream = new ofstream(sFilePath.c_str(), (ofstream::out | ofstream::binary | ofstream::app));
-	if(oOpenStream->fail()) throw InputException("waffleoRai_Utils::FileOutputStreamer::openForAppending","Failed to open stream!");
-}
-
-void FileOutputStreamer::close(){
-	if(oOpenStream != NULL){
-		oOpenStream->close();
-		if(oOpenStream->is_open()) throw InputException("waffleoRai_Utils::FileOutputStreamer::close","Failed to close stream!");
-		delete oOpenStream;
-		oOpenStream = NULL;
-	}
-}
-
-const ofstream& FileOutputStreamer::getStreamView() const{
-	if(oOpenStream == NULL) throw OutputException("waffleoRai_Utils::FileOutputStreamer::getStreamView","Stream is not open!");
-	return *oOpenStream;
-}
-
-const bool FileOutputStreamer::addByte(const ubyte value){
-	//if(!isOpen()) throw OutputException("waffleoRai_Utils::FileOutputStreamer::addByte","Failed to add byte - stream is not open!");
-	if(!isOpen()) return false;
-	oOpenStream->put(value);
-	//if(oOpenStream->fail()) throw OutputException("waffleoRai_Utils::FileOutputStreamer::addByte","Failed to add byte!");
-	return true;
-}
-
-const bool FileOutputStreamer::addBytes(const ubyte* data, const size_t datlen){
-	if(!isOpen()) return false;
-	oOpenStream->write(reinterpret_cast<const char*>(data), datlen);
-	return true;
 }
 
 /*----- String Readers -----*/
@@ -831,57 +739,6 @@ const size_t DataOutputStreamer::putUTF16String(const char32_t* src, const size_
 
 	free(ubuff);
 	return result;
-}
-
-/*----- ifstreamer -----*/
-
-const size_t ifstreamer::fileSize() const {return maxsz;}
-const bool ifstreamer::isOpen() const {return stream && stream->is_open();}
-const bool ifstreamer::streamEnd() const {return (read >= maxsz);}
-const bool ifstreamer::isGood() const {return stream->good();}
-const bool ifstreamer::isBad() const{return stream->bad();}
-const bool ifstreamer::isFail() const {return stream->fail();}
-const size_t ifstreamer::remaining() const {return maxsz - read;}
-const size_t ifstreamer::bytesRead() const { return read; }
-void ifstreamer::open() {} //Does nothing. It assumes that you passed it an open stream.
-
-const bool ifstreamer::isSeekable() const { return true; }
-
-const streampos ifstreamer::seek(const streampos pos) {
-	stream->seekg(pos, std::ios_base::beg);
-	return stream->tellg();
-}
-
-void ifstreamer::skip(const streampos skip_amt) {
-	stream->seekg(skip_amt, std::ios_base::cur);
-}
-
-void ifstreamer::close() {
-	if (close_source_on_close || destroy_source_on_close) {
-		stream->close();
-	}
-	if (destroy_source_on_close) {
-		delete stream;
-		stream = NULL;
-	}
-}
-
-const ifstream& ifstreamer::getStreamView(){
-	return *stream;
-}
-
-const ubyte ifstreamer::nextByte() {
-	if (!stream) return 0;
-	read++;
-	return static_cast<ubyte>(stream->get());
-}
-
-const size_t ifstreamer::nextBytes(ubyte* dst, const size_t len) {
-	streampos stpos = stream->tellg();
-	stream->read((char*)dst, len);
-	size_t read_count = stream->tellg() - stpos;
-	read += read_count;
-	return read_count;
 }
 
 }

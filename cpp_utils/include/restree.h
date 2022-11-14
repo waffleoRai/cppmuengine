@@ -141,8 +141,8 @@ public:
 
 	const int countCards() const;
 
-	ResMapItr begin() { return rMap.begin(); };
-	ResMapItr end() { return rMap.end(); };
+	ResMapItr cbegin() const { return rMap.cbegin(); };
+	ResMapItr cend() const { return rMap.cend(); };
 	map<ResourceKey, ResourceCard>& getMapView() { return rMap; };
 
 	const bool hasCard(const ResourceKey& key) const;

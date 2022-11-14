@@ -9,6 +9,8 @@
 
 #include "unicode/ucnv.h"
 
+#define SIZE_UNKNOWN ~0ULL
+
 #define WRCU_ICU_ENAME_UTF8 "UTF8"
 #define WRCU_ICU_ENAME_UTF16BE "UTF16BE"
 #define WRCU_ICU_ENAME_UTF16LE "UTF16LE"

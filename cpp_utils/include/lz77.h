@@ -4,56 +4,20 @@
 #define READ_BUFFER_SIZE 512
 #define WRITE_BUFFER_SIZE 512
 
+#include "ArrayWindow.h"
 #include "FileStreamer.h"
+
+using std::vector;
 
 namespace waffleoRai_Utils
 {
 
-class WRCU_DLL_API ArrayWindow{
+typedef struct WRCU_DLL_API LZCompRule {
+    uint32_t max_offset = 0;
+    uint32_t max_run = 0;
 
-private:
-    ubyte* buffer_start; //Used for alloc
-    ubyte* buffer_end; //Just used as pointer to save time adding
-
-    ubyte* read_pos;
-    ubyte* write_pos;
-    u32 used_size;
-
-    ubyte* random_pos; //For random access
-
-public:
-    ArrayWindow(size_t alloc):used_size(0){
-        buffer_start = (ubyte*)malloc(alloc);
-        buffer_end = buffer_start + alloc;
-
-        read_pos = buffer_start;
-        write_pos = buffer_start;
-        random_pos = buffer_start;
-    }
-
-    const ubyte pop();
-    const ubyte peek() const;
-    const bool push(ubyte b);
-    const bool put(ubyte b);
-    const bool isEmpty() const;
-    const bool isFull() const;
-    const void clear();
-
-    const uint removeFromFront(uint amt);
-    const uint putBytes(const ubyte* bytes, uint len);
-
-    const bool setRandomAccessPosition(uint pos);
-    const bool setRandomAccessPositionBack(uint pos_from_back);
-    const ubyte getNextRAByte();
-    const ubyte getByteAt(uint pos);
-
-    const size_t getCurrentSize() const;
-    const size_t getCapacity() const;
-    const size_t getAvailableSize() const;
-
-    virtual ~ArrayWindow(){free(buffer_start);}
-
-};
+    LZCompRule(uint32_t off, uint32_t sz) { max_offset = off; max_run = sz; }
+} LZCompRule;
 
 class WRCU_DLL_API LZ77Decompressor: public DataStreamerSource{
 
@@ -88,7 +52,10 @@ public:
 
     DataStreamerSource& getSource(){return src;}
 
+    const int get() override;
     const ubyte nextByte() override;
+
+    const bool remainingToEndKnown() const override;
 	const size_t remaining() const override;
 	const bool streamEnd() const override;
 
@@ -123,6 +90,9 @@ protected:
     u32 streak_count = 0;
     u32 streak_off = 0;
 
+    u32 global_streak_min = 1;
+    vector<LZCompRule> streak_mins = vector<LZCompRule>(); //TODO
+
     virtual void processNextByte(); //Writes to streak_count and streak_off
     virtual const int encodeToWriteBuffer() = 0; //Uses streak_count and streak_off and front window to encode next block. Returns # bytes read.
 
@@ -132,7 +102,10 @@ public:
 
     DataStreamerSource& getSource() { return src; }
 
+    const int get() override;
     const ubyte nextByte() override;
+
+    const bool remainingToEndKnown() const override { return false; }
     const size_t remaining() const override;
     const bool streamEnd() const override;
 

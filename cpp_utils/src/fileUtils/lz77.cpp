@@ -3,120 +3,6 @@
 
 namespace waffleoRai_Utils{
 
-/*--- Array Window ---*/
-
-const ubyte ArrayWindow::pop(){
-    if(used_size <= 0) return 0;
-    ubyte b = *(read_pos++);
-    if(read_pos >= buffer_end) read_pos = buffer_start;
-    used_size--;
-    return b;
-}
-
-const ubyte ArrayWindow::peek() const{
-    if(used_size <= 0) return 0;
-    return *(read_pos);
-}
-
-const bool ArrayWindow::push(ubyte b){
-    if(isFull()) return false;
-    if(--read_pos < buffer_start) read_pos = buffer_end-1;
-    *(read_pos) = b;
-    used_size++;
-    return true;
-}
-
-const bool ArrayWindow::put(ubyte b){
-    if(isFull()) return false;
-    if(write_pos >= buffer_end) write_pos = buffer_start;
-    *(write_pos++) = b;
-    used_size++;
-    return true;
-}
-
-const bool ArrayWindow::isEmpty() const{
-    return (used_size == 0);
-}
-
-const bool ArrayWindow::isFull() const{
-    return (used_size >= (getCapacity()));
-}
-
-const void ArrayWindow::clear(){
-    used_size = 0;
-    write_pos = buffer_start;
-    read_pos = buffer_start;
-}
-
-const uint ArrayWindow::removeFromFront(uint amt){
-    //"Pops" the number of specified bytes from the front
-    if(amt>used_size) amt = used_size;
-    ubyte* npos = read_pos + amt;
-    if(npos >= buffer_end){
-        npos = buffer_start + (npos - buffer_end);
-    }
-    read_pos = npos;
-    used_size -= amt;
-    return amt;
-}
-
-const uint ArrayWindow::putBytes(const ubyte* bytes, uint len){
-    size_t rem = getAvailableSize();
-    if(rem <= 0) return 0;
-    if(rem < len) len = rem;
-
-    for(uint i = 0; i < len; i++){
-        if(write_pos >= buffer_end) write_pos = buffer_start;
-        *(write_pos++) = *(bytes+i);
-        used_size++;
-    }
-
-    return len;
-}
-
-const bool ArrayWindow::setRandomAccessPosition(uint pos){
-    if(pos >= used_size) return false;
-    ubyte* mpos = read_pos + pos;
-    if(mpos >= buffer_end) mpos = buffer_start + (mpos - buffer_end);
-    random_pos = mpos;
-    return true;
-}
-
-const bool ArrayWindow::setRandomAccessPositionBack(uint pos_from_back){
-    if(pos_from_back > used_size) return false;
-    ubyte* mpos = write_pos - pos_from_back;
-    if(mpos < buffer_start) mpos = buffer_end - (buffer_start - mpos);
-    random_pos = mpos;
-    return true;
-}
-
-const ubyte ArrayWindow::getNextRAByte(){
-    //DOES NOT CHECK to see if you are out of bounds!
-    //MAY RETURN GARBAGE!!!!
-    ubyte b = *(random_pos++);
-    if(random_pos >= buffer_end) random_pos = buffer_start;
-    return b;
-}
-
-const ubyte ArrayWindow::getByteAt(uint pos) {
-    if (pos >= used_size) return 0;
-    ubyte* mpos = read_pos + pos;
-    if (mpos >= buffer_end) mpos = buffer_start + (mpos - buffer_end);
-    return *mpos;
-}
-
-const size_t ArrayWindow::getCurrentSize() const{
-    return used_size;
-}
-
-const size_t ArrayWindow::getCapacity() const{
-    return buffer_end - buffer_start;
-}
-
-const size_t ArrayWindow::getAvailableSize() const{
-    return getCapacity() - getCurrentSize();
-}
-
 /*--- LZ77 Decompressor ---*/
 
 const uint LZ77Decompressor::bufferBlock(){
@@ -159,6 +45,11 @@ const uint LZ77Decompressor::bufferBlock(){
     return count;
 }
 
+const int LZ77Decompressor::get() {
+    if (rwin.isEmpty() && !bufferBlock()) return EOF;
+    return static_cast<int>(nextByte()) & 0xff;
+}
+
 const ubyte LZ77Decompressor::nextByte(){
     //Check if there are bytes left
     //if(streamEnd()) return 0xFF;
@@ -171,7 +62,11 @@ const ubyte LZ77Decompressor::nextByte(){
     return rwin.pop();
 }
 
-const u64 LZ77Decompressor::remaining() const{
+const bool LZ77Decompressor::remainingToEndKnown() const {
+    return (decomp_size > 0);
+}
+
+const size_t LZ77Decompressor::remaining() const{
     if(decomp_size < 0) return decomp_size;
     return decomp_size - read_count;
 }
@@ -194,22 +89,40 @@ void LZ77Compressor::processNextByte() {
     u32 bpos = 0;
     u32 bsize, fsize;
     int spos = 0;
+    int i = 0;
     bool usef = false;
     ubyte bytef = 0, byter = 0;
+    ubyte first_byte = 0;
+    uint32_t minrun = global_streak_min;
+    vector<LZCompRule>::const_iterator vitr = streak_mins.cbegin();
+    vector<LZCompRule>::const_iterator vend = streak_mins.cend();
 
     streak_count = 0;
     streak_off = 0;
     bsize = bwin.getCurrentSize();
     fsize = fwin.getCurrentSize();
-    
-    for (bpos = 0; bpos < bsize; bpos++) {
-        bwin.setRandomAccessPositionBack(bpos);
-        fwin.setRandomAccessPosition(0);
-        spos = bpos; usef = false;
 
-        //How long a streak can you get from here?
-        //(Don't forget that it should continue to the forward window if back ends...)
-        usef = false;
+ /*   printf("fwin peek: ");
+    for (int i = 0; i < 16; i++) printf("%02x ", fwin.getByteAt(i));
+    printf("\nbwin back: ");
+    int readback = bsize < 16 ? bsize : 16;
+    bwin.setRandomAccessPositionBack(readback);
+    for (int i = 0; i < readback; i++) printf("%02x ", bwin.getNextRAByte());
+    printf("\n");
+    */
+
+    first_byte = fwin.getByteAt(0);
+    for (bpos = 0; bpos < bsize; bpos++) {
+
+        if (bwin.getByteFromBack(bpos+1) != first_byte) continue;
+
+        spos = bpos - 1; usef = false; fpos = 1;
+        fwin.setRandomAccessPosition(1);
+        if (spos < 0) {
+            usef = true;
+            spos = 0;
+        }
+        else bwin.setRandomAccessPositionBack(bpos);
         do {
             if (fpos >= fsize) break;
             if (usef && (spos >= fsize)) break;
@@ -229,11 +142,25 @@ void LZ77Compressor::processNextByte() {
 
         //fpos represents how many were read, which may be one more than were matched.
         if (bytef != byter) fpos--; //If it broke from mismatch, not because end was reached.
-        if (fpos > streak_count) {
+        if (fpos < minrun) continue;
+
+        //Update minimum run size...
+        while (vitr != vend && bpos >= vitr->max_offset) {
+            minrun = vitr->max_run;
+            vitr++;
+        }
+        if (fpos < minrun) continue;
+        if ((fpos > streak_count)) {
             streak_count = fpos;
             streak_off = bpos;
         }
     }
+    //printf("\n");
+}
+
+const int LZ77Compressor::get() {
+    if (write_buffer.isEmpty() && fwin.isEmpty() && src.streamEnd()) return EOF;
+    return static_cast<int>(nextByte()) & 0xff;
 }
 
 const ubyte LZ77Compressor::nextByte() {
@@ -246,6 +173,10 @@ const ubyte LZ77Compressor::nextByte() {
     }
 
     while (!fwin.isFull() && !src.streamEnd()) {
+        /*ubyte b = src.nextByte();
+        printf("Read byte into forward window: %02x | Position = %llx\n", b, input_bytes);
+        fwin.put(b);*/
+
         fwin.put(src.nextByte());
         input_bytes++;
     }
@@ -269,6 +200,7 @@ const size_t LZ77Compressor::remaining() const {
 }
 
 const bool LZ77Compressor::streamEnd() const {
+    //printf("%d %d %d\n", write_buffer.getCurrentSize(), fwin.getCurrentSize(), src.streamEnd());
     return write_buffer.isEmpty() && fwin.isEmpty() && src.streamEnd();
 }
 

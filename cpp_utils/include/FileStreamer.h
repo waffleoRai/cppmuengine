@@ -1,11 +1,8 @@
 #ifndef FILESTREAMER_H_INCLUDED
 #define FILESTREAMER_H_INCLUDED
 
-#include "wr_cpp_utils.h"
-#include <iostream>
-#include <fstream>
-#include <filesystem> //Need C++ 17 !
-//#include <sys/stat.h>
+#include "FileInput.h"
+#include "FileOutput.h"
 
 using std::ifstream;
 using std::streampos;
@@ -14,38 +11,14 @@ using std::cout;
 using std::filesystem::path;
 using icu::UnicodeString;
 
-namespace waffleoRai_Utils
-{
+using waffleoRai_Utils::DataStreamerSource;
+using waffleoRai_Utils::DataOutputTarget;
 
-//TODO Maybe add some general functions for:
-	//	Loading a whole file into memory (and release that memory)
-	//	Getting a DataStreamerSource that is a part of a file (path, start, end)
+namespace waffleoRai_Utils {
 
 enum class WRCU_DLL_API Endianness {little_endian,big_endian};
 
 WRCU_DLL_API const bool WRCU_CDECL sys_endian_matches(Endianness e);
-
-class WRCU_DLL_API DataStreamerSource
-{
-
-public:
-	virtual const ubyte nextByte() = 0;
-	virtual const size_t remaining() const = 0;
-	virtual const bool streamEnd() const = 0;
-
-	virtual void open() = 0;
-	virtual void close() = 0;
-	virtual const bool isOpen() const = 0;
-	virtual const bool resetReadCounter() { return false; }
-
-	//Does nothing by default
-	virtual const bool isSeekable() const;
-	virtual const streampos seek(const streampos pos);
-
-	virtual const size_t nextBytes(ubyte* dst, const size_t len); //Default implementation just calls nextByte()
-
-	virtual ~DataStreamerSource(){}
-};
 
 class WRCU_DLL_API DataInputStreamer
 {
@@ -111,142 +84,6 @@ public:
 
 };
 
-class WRCU_DLL_API InputException:public exception
-{
-private:
-	const char* sSource;
-	const char* sReason;
-
-public:
-	InputException(const char* source, const char* reason):sSource(source),sReason(reason){};
-	const char* what() const throw(){return sReason;}
-};
-
-class WRCU_DLL_API FileInputStreamer:public DataStreamerSource
-{
-
-private:
-    const path sFilePath;
-
-    ifstream* oOpenStream;
-    size_t read = 0;
-    size_t maxsz = 0; //Field to save file size so don't have to retrieve from OS when remainingBytes() is called.
-
-	streampos start_boundary = 0;
-	streampos end_boundary = 0;
-
-public:
-
-	FileInputStreamer(const path& path) :sFilePath(path), oOpenStream(nullptr) {}
-    FileInputStreamer(const string& ascii_path):sFilePath(ascii_path),oOpenStream(nullptr){}
-    FileInputStreamer(const char* ascii_path):sFilePath(ascii_path),oOpenStream(nullptr){}
-    FileInputStreamer(const char16_t* utf16_path):sFilePath(utf16_path),oOpenStream(nullptr){}
-    FileInputStreamer(const char32_t* utf32_path):sFilePath(utf32_path),oOpenStream(nullptr){}
-
-    const path& getPath() const{return sFilePath;}
-
-    const size_t fileSize() const;
-	const streampos getStartBoundary() const { return start_boundary; }
-	const streampos getEndBoundary() const { return end_boundary; }
-	
-	const streampos setStartBoundary(const streampos position) {
-		if (start_boundary >= 0 && start_boundary < end_boundary) {
-			start_boundary = position;
-		}
-		return start_boundary;
-	}
-	
-	const streampos setEndBoundary(const streampos position) { 
-		if (end_boundary <= maxsz && end_boundary > start_boundary) {
-			end_boundary = position;
-		}
-		return end_boundary;
-	}
-
-	const bool isSeekable() const override;
-	const streampos seek(const streampos pos) override;
-
-    const bool isOpen() const override;
-    const bool streamEnd() const override;
-    const bool isGood() const;
-    const bool isBad() const;
-    const bool isFail() const;
-    const size_t remaining() const override;
-    const size_t bytesRead() const{return read;}
-	const bool resetReadCounter() override { read = 0; return true; }
-
-    void open() override;
-    void open(const streampos startOffset);
-    void jumpTo(const streampos offset);
-    void skip(const streampos skip_amt);
-    void close() override;
-    const ifstream& getStreamView() const;
-
-    const ubyte nextByte() override;
-
-    virtual ~FileInputStreamer(){close();}
-
-};
-
-class WRCU_DLL_API ifstreamer :public DataStreamerSource
-{
-
-private:
-	ifstream* stream;
-	size_t read = 0;
-	size_t maxsz = 0;
-	streampos start_boundary = 0;
-
-	bool close_source_on_close = false;
-	bool destroy_source_on_close = false;
-
-public:
-
-	ifstreamer(ifstream& source, size_t size_bytes) :stream(&source), maxsz(size_bytes) {}
-
-	const size_t fileSize() const;
-
-	const bool isOpen() const override;
-	const bool streamEnd() const override;
-	const bool isGood() const;
-	const bool isBad() const;
-	const bool isFail() const;
-	const size_t remaining() const override;
-	const size_t bytesRead() const;
-	const bool resetReadCounter() override { read = 0; return true; }
-
-	const bool isSeekable() const override;
-	const streampos seek(const streampos pos) override;
-
-	void open() override;
-	void skip(const streampos skip_amt);
-	void close() override;
-	const ifstream& getStreamView();
-
-	const ubyte nextByte() override;
-	const size_t nextBytes(ubyte* dst, const size_t len) override;
-
-	void setCloseStreamOnClose(const bool flag) { close_source_on_close = flag; }
-	void setDestroyStreamOnClose(const bool flag) { destroy_source_on_close = flag; }
-
-	virtual ~ifstreamer() { close(); }
-
-};
-
-class WRCU_DLL_API DataOutputTarget
-{
-
-public:
-	virtual const bool addByte(const ubyte b) = 0;
-	virtual const bool addBytes(const ubyte* data, const size_t datlen) = 0;
-	virtual const bool isOpen() const = 0;
-	virtual void open() = 0;
-    virtual void close() = 0;
-
-	virtual ~DataOutputTarget(){}
-
-};
-
 class WRCU_DLL_API DataOutputStreamer
 {
 
@@ -298,46 +135,6 @@ public:
 
 };
 
-class WRCU_DLL_API OutputException:public exception
-{
-private:
-	const char* sSource;
-	const char* sReason;
-
-public:
-	OutputException(const char* source, const char* reason):sSource(source),sReason(reason){};
-	const char* what() const throw(){return sReason;}
-};
-
-class WRCU_DLL_API FileOutputStreamer:public DataOutputTarget
-{
-
-private:
-    const path sFilePath;
-
-    ofstream* oOpenStream;
-
-public:
-	FileOutputStreamer(const path& path) :sFilePath(path), oOpenStream(nullptr) {}
-    FileOutputStreamer(const string& ascii_path):sFilePath(ascii_path),oOpenStream(nullptr){}
-    FileOutputStreamer(const char* ascii_path):sFilePath(ascii_path),oOpenStream(nullptr){}
-    FileOutputStreamer(const char16_t* utf16_path):sFilePath(utf16_path),oOpenStream(nullptr){}
-    FileOutputStreamer(const char32_t* utf32_path):sFilePath(utf32_path),oOpenStream(nullptr){}
-
-    const path& getPath() const{return sFilePath;}
-
-    const bool isOpen() const override;
-    void open() override;
-    void openForAppending();
-    void close() override;
-    const ofstream& getStreamView() const;
-
-    const bool addByte(const ubyte value) override;
-    const bool addBytes(const ubyte* data, const size_t datlen) override;
-
-    virtual ~FileOutputStreamer(){close();}
-};
-
 class WRCU_DLL_API FileParsingException:public exception
 {
 private:
@@ -349,7 +146,28 @@ public:
 	const char* what() const throw(){return sReason;}
 };
 
+/*----- Common Utility Functions -----*/
 
-}
+//Open piece of file as DataStreamerSource + release/close
+//Open file/piece of file and wrap in DataInputStreamer + release/close
+//Open DataOutputStreamer targeting a file + release/close
+//Common IO/Exception handling function? (Printing messages or something?)
+//Loading a file/file piece into memory
+
+WRCU_DLL_API const bool open_file_as_input_source(FileInputStreamer& container, const streampos start_offset, const size_t len);
+WRCU_DLL_API DataStreamerSource* open_file_as_input_source(const path& filepath, const streampos start_offset, const size_t len);
+WRCU_DLL_API void close_file_as_input_source(DataStreamerSource* src);
+
+WRCU_DLL_API DataInputStreamer* open_file_as_input_reader(const path& filepath, const streampos start_offset, const size_t len, const Endianness byte_order);
+WRCU_DLL_API void close_file_as_input_reader(DataInputStreamer* src);
+
+WRCU_DLL_API DataOutputStreamer* open_file_as_output_writer(const path& filepath, const Endianness byte_order);
+WRCU_DLL_API void close_file_as_output_writer(DataOutputStreamer* trg);
+
+WRCU_DLL_API const size_t load_file_to_memory(const path& filepath, const streampos start_offset, const size_t len, void* dst);
+WRCU_DLL_API const size_t load_file_to_memory(const path& filepath, void* dst);
+WRCU_DLL_API const size_t write_file_from_memory(const path& filepath, const void* src, const size_t len);
+
+};
 
 #endif // FILESTREAMER_H_INCL
