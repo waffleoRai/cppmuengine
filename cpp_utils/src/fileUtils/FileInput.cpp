@@ -10,9 +10,11 @@ namespace waffleoRai_Utils {
 		if (!dst || len <= 0) return 0;
 		size_t i;
 		ubyte* pos = dst;
+		int b = EOF;
 		for (i = 0; i < len; i++) {
-			if (streamEnd()) return static_cast<size_t>(pos - dst);
-			*(pos++) = nextByte();
+			b = get();
+			if (b == EOF) return static_cast<size_t>(pos - dst);
+			*(pos++) = (ubyte)b;
 		}
 
 		return static_cast<size_t>(pos - dst);
@@ -23,10 +25,16 @@ namespace waffleoRai_Utils {
 	}
 
 	const streampos DataStreamerSource::seek(const streampos pos) {
-		return ~0;
+		return SIZE_UNKNOWN;
+	}
+
+	const streampos DataStreamerSource::tell() {
+		return SIZE_UNKNOWN;
 	}
 
 	/*----- FileInputStreamer -----*/
+
+#define FIS_ISOPEN (oOpenStream != NULL && oOpenStream->is_open())
 
 	const size_t FileInputStreamer::fileSize() const {
 		//https://stackoverflow.com/questions/5840148/how-can-i-get-a-files-size-in-c
@@ -39,11 +47,7 @@ namespace waffleoRai_Utils {
 		try {
 			return static_cast<size_t>(std::filesystem::file_size(sFilePath));
 		}
-		catch (filesystem_error& x) { return -1LL; }
-	}
-
-	const bool FileInputStreamer::isOpen() const {
-		return (oOpenStream != NULL && oOpenStream->is_open());
+		catch (filesystem_error& x) { return SIZE_UNKNOWN; }
 	}
 
 	const bool FileInputStreamer::streamEnd() const {
@@ -52,35 +56,18 @@ namespace waffleoRai_Utils {
 		return (oOpenStream->eof() || (oOpenStream->tellg() >= end_boundary));
 	}
 
-	const bool FileInputStreamer::isGood() const {
-		if (oOpenStream == NULL) return false;
-		if (!oOpenStream->is_open()) return true;
-		return oOpenStream->good();
-	}
-
-	const bool FileInputStreamer::isBad() const {
-		if (oOpenStream == NULL) return false;
-		if (!oOpenStream->is_open()) return true;
-		return oOpenStream->bad();
-	}
-
-	const bool FileInputStreamer::isFail() const {
-		if (oOpenStream == NULL) return false;
-		if (!oOpenStream->is_open()) return true;
-		return oOpenStream->fail();
-	}
-
 	const bool FileInputStreamer::remainingToEndKnown() const {
-		if (!isOpen()) return false;
-		if (end_boundary < 0ULL) return false;
+		if (!FIS_ISOPEN) return false;
+		if (end_boundary == SIZE_UNKNOWN) return false;
 		return true;
 	}
 
 	const size_t FileInputStreamer::remaining() const {
-		if (!isOpen()) return SIZE_UNKNOWN;
-		if (end_boundary < 0ULL) return SIZE_UNKNOWN;
-		size_t diff = static_cast<size_t>(end_boundary - oOpenStream->tellg());
-		if (diff < 0ULL) return SIZE_UNKNOWN;
+		if (!FIS_ISOPEN) return SIZE_UNKNOWN;
+		if (end_boundary == SIZE_UNKNOWN) return SIZE_UNKNOWN;
+		streampos tell = oOpenStream->tellg();
+		if(tell > end_boundary) return SIZE_UNKNOWN;
+		size_t diff = static_cast<size_t>(end_boundary - tell);
 		return diff;
 	}
 
@@ -91,7 +78,7 @@ namespace waffleoRai_Utils {
 
 	void FileInputStreamer::open() {
 		//Maybe set exception throwing instead of doing active check?
-		if (isOpen()) return;
+		if (FIS_ISOPEN) return;
 		read = 0;
 		end_boundary = maxsz = fileSize();
 		oOpenStream = new ifstream(sFilePath, ifstream::in | ifstream::binary);
@@ -99,7 +86,7 @@ namespace waffleoRai_Utils {
 	}
 
 	void FileInputStreamer::open(const streampos startOffset) {
-		if (isOpen()) return;
+		if (FIS_ISOPEN) return;
 		read = 0;
 		end_boundary = maxsz = fileSize();
 		if (startOffset > maxsz) throw InputException("waffleoRai_Utils::FileInputStreamer::open", "Open offset after end of file!");
@@ -109,22 +96,42 @@ namespace waffleoRai_Utils {
 		start_boundary = startOffset;
 	}
 
-	void FileInputStreamer::jumpTo(const streampos offset) {
-		if (!isOpen()) return;
-		if (offset > end_boundary) throw InputException("waffleoRai_Utils::FileInputStreamer::jumpTo", "Target offset after end of file!");
-		oOpenStream->seekg(offset + start_boundary);
-		if (oOpenStream->fail()) throw InputException("waffleoRai_Utils::FileInputStreamer::jumpTo", "Stream seekg failed!");
+	void FileInputStreamer::open(const streampos startOffset, const size_t len) {
+		if (FIS_ISOPEN) return;
+		read = 0;
+		maxsz = fileSize();
+		if (startOffset > maxsz) throw InputException("waffleoRai_Utils::FileInputStreamer::open", "Open offset after end of file!");
+		end_boundary = static_cast<uint64_t>(startOffset) + len;
+		if (end_boundary > maxsz) throw InputException("waffleoRai_Utils::FileInputStreamer::open", "End offset after end of file!");
+		start_boundary = startOffset;
+		oOpenStream = new ifstream(sFilePath, ifstream::in | ifstream::binary);
+		oOpenStream->seekg(startOffset);
+		if (oOpenStream->fail()) throw InputException("waffleoRai_Utils::FileInputStreamer::open", "Failed to open stream!");
 	}
 
-	void FileInputStreamer::skip(const streampos skip_amt) {
+	const size_t FileInputStreamer::skip(const streampos skip_amt) {
+		if (!FIS_ISOPEN) return SIZE_UNKNOWN;
 		streampos pos = oOpenStream->tellg();
-		jumpTo(pos + skip_amt);
+		streampos trg = pos + skip_amt;
+		if (trg > end_boundary) {
+			trg = end_boundary;
+		}
+		oOpenStream->seekg(trg);
+		return static_cast<size_t>(oOpenStream->tellg() - pos);
 	}
 
 	const bool FileInputStreamer::isSeekable() const { return true; }
 
 	const streampos FileInputStreamer::seek(const streampos pos) {
-		jumpTo(pos);
+		if (!FIS_ISOPEN) return SIZE_UNKNOWN;
+		streampos trg = pos + start_boundary;
+		if (trg > end_boundary) throw InputException("waffleoRai_Utils::FileInputStreamer::seek", "Seek position is invalid!");
+		oOpenStream->seekg(trg);
+		return oOpenStream->tellg() - start_boundary;
+	}
+
+	const streampos FileInputStreamer::tell() {
+		if (!FIS_ISOPEN) return SIZE_UNKNOWN;
 		return oOpenStream->tellg() - start_boundary;
 	}
 
@@ -138,7 +145,8 @@ namespace waffleoRai_Utils {
 	}
 
 	const ubyte FileInputStreamer::nextByte() {
-		if (!isOpen()) throw InputException("waffleoRai_Utils::FileInputStreamer::nextByte", "Failed to retrieve next byte - stream is not open!");
+		if (!FIS_ISOPEN) throw InputException("waffleoRai_Utils::FileInputStreamer::nextByte", "Failed to retrieve next byte - stream is not open!");
+		if (oOpenStream->tellg() >= end_boundary) return (ubyte)0xff;
 		int b = oOpenStream->get();
 		//if(oOpenStream->fail()) throw InputException("waffleoRai_Utils::FileInputStreamer::nextByte","Failed to retrieve next byte!");
 		read++;
@@ -146,18 +154,25 @@ namespace waffleoRai_Utils {
 	}
 
 	const int FileInputStreamer::get() {
-		if (!isOpen()) throw InputException("waffleoRai_Utils::FileInputStreamer::get", "Failed to retrieve next byte - stream is not open!");
+		if (!FIS_ISOPEN) throw InputException("waffleoRai_Utils::FileInputStreamer::get", "Failed to retrieve next byte - stream is not open!");
+		if (oOpenStream->tellg() >= end_boundary) return EOF;
 		int b = oOpenStream->get();
 		read++;
 		return b;
 	}
 
 	const size_t FileInputStreamer::nextBytes(ubyte* dst, const size_t len) {
-		if (!isOpen()) throw InputException("waffleoRai_Utils::FileInputStreamer::nextBytes", "Failed to retrieve data - stream is not open!");
+		if (!FIS_ISOPEN) throw InputException("waffleoRai_Utils::FileInputStreamer::nextBytes", "Failed to retrieve data - stream is not open!");
+		size_t readamt = len;
 		streampos stpos = oOpenStream->tellg();
-		oOpenStream->read((char*)dst, len);
+		streampos trg = stpos + static_cast<streampos>(readamt);
+		if (trg > end_boundary) {
+			trg = end_boundary;
+			readamt = static_cast<size_t>(trg - stpos);
+		}
+		oOpenStream->read((char*)dst, readamt);
 		streampos edpos = oOpenStream->tellg();
-		size_t readamt = static_cast<size_t>(edpos - stpos);
+		readamt = static_cast<size_t>(edpos - stpos);
 		read += readamt;
 		return readamt;
 	}
@@ -167,13 +182,13 @@ namespace waffleoRai_Utils {
 	void ifstreamer::open() {} //Does nothing. It assumes that you passed it an open stream.
 
 	const bool ifstreamer::remainingToEndKnown() const {
-		if (stream && end_boundary > 0) return true;
+		if (stream && end_boundary != SIZE_UNKNOWN) return true;
 		return false;
 	}
 
 	const size_t ifstreamer::remaining() const {
 		if (!stream) return SIZE_UNKNOWN;
-		if (end_boundary > 0) {
+		if (end_boundary != SIZE_UNKNOWN) {
 			return end_boundary - stream->tellg();
 		}
 		return SIZE_UNKNOWN;
@@ -181,7 +196,7 @@ namespace waffleoRai_Utils {
 
 	const bool ifstreamer::streamEnd() const {
 		if (!stream) return true;
-		if (end_boundary > 0) {
+		if (end_boundary > SIZE_UNKNOWN) {
 			return stream->tellg() >= end_boundary;
 		}
 		return stream->eof();
@@ -191,8 +206,13 @@ namespace waffleoRai_Utils {
 
 	const streampos ifstreamer::seek(const streampos pos) {
 		if (!stream) return SIZE_UNKNOWN;
-		stream->seekg(pos, std::ios_base::beg);
-		return stream->tellg();
+		stream->seekg(start_boundary + pos, std::ios_base::beg);
+		return stream->tellg() - start_boundary;
+	}
+
+	const streampos ifstreamer::tell() {
+		if (!stream) return SIZE_UNKNOWN;
+		return stream->tellg() - start_boundary;
 	}
 
 	void ifstreamer::skip(const streampos skip_amt) {
@@ -207,11 +227,12 @@ namespace waffleoRai_Utils {
 		}
 		if (destroy_source_on_close) {
 			delete stream;
-			stream = NULL;
 		}
+		stream = NULL;
 	}
 
 	const ifstream& ifstreamer::getStreamView() {
+		if (!stream) throw InputException("waffleoRai_Utils::ifstreamer::getStreamView", "ifstream reference is null!");
 		return *stream;
 	}
 
@@ -255,6 +276,11 @@ namespace waffleoRai_Utils {
 		if(current_pos > data_end) current_pos = data_end;
 		if (current_pos < data) current_pos = data;
 		return static_cast<size_t>(current_pos - data);
+	}
+
+	const streampos MemInputStreamer::tell() {
+		if (!current_pos) return SIZE_UNKNOWN;
+		return static_cast<streampos>(current_pos - data);
 	}
 
 	const size_t MemInputStreamer::nextBytes(ubyte* dst, const size_t len) {

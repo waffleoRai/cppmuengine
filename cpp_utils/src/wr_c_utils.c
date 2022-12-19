@@ -112,7 +112,7 @@ UConverter* new_utf32_conv(UErrorCode* err){
 }
 
 
-const int32_t to_utf16(char16_t* dst, const char* src, int32_t sz_dst, int32_t sz_src, const UConverter* conv, UErrorCode* err){
+const int32_t to_utf16(char16_t* dst, const char* src, int32_t sz_dst, int32_t sz_src, UConverter* conv, UErrorCode* err){
     if(!conv || !src || !dst) return 0; //If no error, it's because null ptr
     int32_t read = ucnv_toUChars (conv, (UChar*)dst, sz_dst, src, sz_src, err);
 
